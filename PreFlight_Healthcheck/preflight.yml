@@ -1,0 +1,11 @@
+---
+- hosts: all
+  gather_facts: yes
+  become: yes
+  vars:
+    product_name: "rhel"
+  roles:
+    - role: roles/preflight_prompt
+      vars:
+        product_name: "{{ product_name }}"
+    - role: "roles/{{ product_name }}"

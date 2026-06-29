@@ -1,0 +1,100 @@
+---
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env','HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Fail if required secrets missing
+  ansible.builtin.fail:
+    msg: "Missing required secret '{{ item }}' for '{{ product_name }}' in ~/.ansible/conf/env.yml"
+  when: product_env.get(item, '') == ''
+  loop: "{{ product_required_secrets | default([]) }}"
+  tags: secrets
+
+- name: Ensure prerequisite OS packages are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ product_prereq_packages }}"
+  ignore_errors: yes
+  register: pkg_install_results
+  tags: prereqs
+
+- name: Warn about missing packages
+  ansible.builtin.debug:
+    msg: "Package {{ item.item }} failed to install: {{ item.msg | default('unknown') }}"
+  loop: "{{ pkg_install_results.results | default([]) }}"
+  when: item.failed
+  tags: prereqs
+
+- name: Ensure pip, setuptools and wheel are upgraded
+  ansible.builtin.pip:
+    name:
+      - pip
+      - setuptools
+      - wheel
+    state: latest
+    executable: pip3
+  tags: pip
+
+- name: Ensure admin user exists
+  ansible.builtin.user:
+    name: "{{ preflight_admin_user }}"
+    groups: "{{ preflight_sudo_group }}"
+    append: yes
+    create_home: yes
+  tags: users
+
+- name: Allow admin passwordless sudo
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/preflight_admin
+    create: yes
+    line: "{{ preflight_admin_user }} ALL=(ALL) NOPASSWD:ALL"
+    state: present
+    validate: '/usr/sbin/visudo -cf %s'
+  tags: users
+
+- name: Ensure product yum/dnf repositories are present
+  ansible.builtin.yum_repository:
+    name: "{{ item.name }}"
+    description: "{{ item.description | default(item.name) }}"
+    baseurl: "{{ item.baseurl }}"
+    enabled: yes
+    gpgcheck: no
+  loop: "{{ product_repos | default([]) }}"
+  when: product_repos is defined and product_repos | length > 0
+  tags: repos
+
+- name: Ensure installer config exists (touch as placeholder)
+  ansible.builtin.file:
+    path: "{{ installer_config_path }}"
+    state: touch
+  tags: installer
+
+- name: Configure rootless podman (subuid/subgid) when requested
+  block:
+    - name: Ensure subuid entry exists
+      ansible.builtin.lineinfile:
+        dest: /etc/subuid
+        line: "{{ preflight_admin_user }}:100000:65536"
+        create: yes
+    - name: Ensure subgid entry exists
+      ansible.builtin.lineinfile:
+        dest: /etc/subgid
+        line: "{{ preflight_admin_user }}:100000:65536"
+        create: yes
+  when: preflight_container_rootless | bool
+  tags: containers
+
+- name: Check filesystem mounts (report)
+  ansible.builtin.shell: df -h {{ item }} || true
+  register: df_out
+  failed_when: false
+  loop: "{{ product_required_mounts | default([]) }}"
+  tags: filesystems

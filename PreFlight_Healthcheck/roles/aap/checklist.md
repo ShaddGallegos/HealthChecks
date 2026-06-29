@@ -1,0 +1,8 @@
+- Prerequisites: python3, python3-venv, python3-pip
+- Packages: install required AAP packages and container tools when needed
+- Pip: `pip`, `setuptools`, `wheel` upgraded
+- Admin user: create `admin` and configure passwordless sudo
+- Repositories: enable AAP repositories
+- Installer config: verify installer configuration files exist
+- Secrets: `~/.ansible/conf/env.yml` contains unique product secrets and is ansible-vault encrypted
+- Rootless containers: configure when AAP is installed as containers

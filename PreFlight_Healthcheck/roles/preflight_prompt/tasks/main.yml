@@ -1,0 +1,5 @@
+---
+- name: Prompt for product variables by executing helper script
+  local_action: command "{{ playbook_dir }}/scripts/prompt_for_vars.py --product {{ product_name }}"
+  run_once: true
+  when: not (preflight_skip_prompt | default(false) | bool)

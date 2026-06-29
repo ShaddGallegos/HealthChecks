@@ -1,0 +1,8 @@
+- Prerequisites: python3, virtualization and network packages
+- Filesystems: ensure /var, /opt and storage mounts have sufficient space
+- Packages: required OpenStack packages installed
+- Pip: `pip`, `setuptools`, `wheel` upgraded
+- Admin user: create `admin` and configure passwordless sudo
+- Repositories: enable OpenStack and RHEL repositories
+- Installer config: verify OpenStack installer configuration
+- Secrets: `~/.ansible/conf/env.yml` contains unique product secrets and is ansible-vault encrypted

@@ -1,0 +1,49 @@
+---
+- name: Check prereqs - ensure python packages are present
+  package:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - python3
+    - python3-venv
+  tags: prereqs
+
+- name: Ensure pip, setuptools and wheel are upgraded
+  pip:
+    name:
+      - pip
+      - setuptools
+      - wheel
+    state: latest
+  tags: pip
+
+- name: Ensure admin user exists
+  user:
+    name: "{{ preflight_admin_user | default('admin') }}"
+    groups: "{{ preflight_sudo_group | default('wheel') }}"
+    append: yes
+    create_home: yes
+  tags: users
+
+- name: Allow admin passwordless sudo
+  lineinfile:
+    path: /etc/sudoers.d/preflight_admin
+    create: yes
+    line: "{{ preflight_admin_user | default('admin') }} ALL=(ALL) NOPASSWD:ALL"
+    state: present
+    validate: '/usr/sbin/visudo -cf %s'
+  tags: users
+
+- name: Setup rootless podman for user when requested
+  when: preflight_container_rootless | default(false)
+  block:
+    - name: Ensure subuid/subgid entries exist
+      lineinfile:
+        dest: /etc/subuid
+        line: "{{ preflight_admin_user | default('admin') }}:100000:65536"
+        create: yes
+    - name: Ensure subgid entries exist
+      lineinfile:
+        dest: /etc/subgid
+        line: "{{ preflight_admin_user | default('admin') }}:100000:65536"
+        create: yes

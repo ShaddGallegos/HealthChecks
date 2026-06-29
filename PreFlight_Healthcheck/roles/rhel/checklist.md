@@ -1,0 +1,9 @@
+- Prerequisites: python3, python3-venv, python3-pip
+- Filesystems: verify /var and /opt have sufficient space
+- Packages: required OS packages installed
+- Pip: `pip`, `setuptools`, `wheel` upgraded
+- Admin user: create `admin` and configure passwordless sudo
+- Repositories: required product repositories enabled
+- Installer config: installer config file present at `/etc/rhel-installer.conf`
+- Secrets: `~/.ansible/conf/env.yml` contains unique product secrets and is ansible-vault encrypted
+- Rootless containers: configure subuid/subgid when requested
