@@ -2,3 +2,26 @@
 __pycache__/
 **/__pycache__/
 *.py[cod]
+
+# Local runtime and temp artifacts
+.ansible/
+**/.ansible/
+.cache/
+**/.cache/
+.pytest_cache/
+**/.pytest_cache/
+.mypy_cache/
+**/.mypy_cache/
+.ruff_cache/
+**/.ruff_cache/
+tmp/
+**/tmp/
+temp/
+**/temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.bak
+.DS_Store
