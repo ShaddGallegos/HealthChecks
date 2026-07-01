@@ -1,20 +1,3 @@
 ---
-product: ceph
-source_urls:
-  - https://docs.redhat.com/en/documentation/red_hat_ceph_storage/9
-hardware_requirements:
-  notes: "Ceph requires careful disk, network, and IOPS planning; follow Ceph storage sizing and reference architectures."
-setup_requirements:
-  - "Provision dedicated storage nodes and plan for replication and OSD placement"
-best_practices:
-  - "Use dedicated network for storage traffic and monitor IOPS/latency closely"
-scenarios:
-  install:
-    preflight:
-      - "Verify disk types, partitioning, and available IOPS"
-    postinstall:
-      - "Validate cluster health and data replication"
-  backup:
-    preflight:
-      - "Plan for object/block backup and recovery strategy"
-    postinstall: []
+collections: []
+roles: []
