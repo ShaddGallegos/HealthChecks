@@ -1,0 +1,33 @@
+---
+- name: Setup runtime and prerequisites
+  ansible.builtin.include_tasks: 00_setup.yml
+  tags: [always, setup]
+
+- name: Discover live hosts
+  ansible.builtin.include_tasks: 10_discovery.yml
+  tags: [step1, discovery]
+
+- name: Map open ports quickly
+  ansible.builtin.include_tasks: 20_rustscan.yml
+  tags: [step2, rustscan]
+
+- name: Run deep enumeration
+  ansible.builtin.include_tasks: 30_nmap.yml
+  tags: [step3, nmap]
+
+- name: Gather firewall and uptime telemetry
+  ansible.builtin.include_tasks: 40_hping.yml
+  tags: [step4, hping]
+
+- name: Run optional authenticated SSH audits
+  ansible.builtin.include_tasks: 50_ssh_audit.yml
+  when: network_inventory_enable_local_audit | bool
+  tags: [step5, audit, ssh]
+
+- name: Build consolidated reports
+  ansible.builtin.include_tasks: 60_report.yml
+  tags: [step6, report]
+
+- name: Print output summary
+  ansible.builtin.include_tasks: 70_summary.yml
+  tags: [summary]

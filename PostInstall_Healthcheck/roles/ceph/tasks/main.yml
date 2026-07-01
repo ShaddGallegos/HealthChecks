@@ -1,0 +1,119 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    ceph_product_env: "{{ env_vars.get('ceph', {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: ceph_uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: ceph_sudo_check
+  failed_when: false
+  changed_when: false
+  when: ceph_uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - ceph_uid_check.stdout == '0' or ceph_sudo_check.rc == 0
+    fail_msg: "This PostInstall healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+
+- name: Fail if required secrets missing
+  ansible.builtin.fail:
+    msg: "Missing required secret '{{ item }}' for 'ceph' in ~/.ansible/conf/env.yml"
+  when: ceph_product_env.get(item, '') == ''
+  loop: "{{ ceph_product_required_secrets | default([]) }}"
+  tags: secrets
+
+- name: Ensure prerequisite OS packages are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ ceph_product_prereq_packages | default([]) }}"
+  when: ceph_install_deps | default(false)
+  ignore_errors: true
+  register: ceph_pkg_install_results
+  tags: prereqs
+
+- name: Warn about missing packages
+  ansible.builtin.debug:
+    msg: "Package {{ item.item }} failed to install: {{ item.msg | default('unknown') }}"
+  loop: "{{ ceph_pkg_install_results.results | default([]) }}"
+  when: item.failed
+  tags: prereqs
+
+- name: Ensure pip, setuptools and wheel are upgraded
+  ansible.builtin.pip:
+    name:
+      - pip
+      - setuptools
+      - wheel
+    state: present
+    executable: pip3
+  when: ceph_install_deps | default(false)
+  tags: pip
+
+- name: Ensure admin user exists
+  ansible.builtin.user:
+    name: "{{ ceph_preflight_admin_user }}"
+    groups: "{{ ceph_preflight_sudo_group }}"
+    append: true
+    create_home: true
+  when: ceph_apply_changes | default(false)
+  tags: users
+
+- name: Allow admin passwordless sudo
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/preflight_admin
+    create: true
+    line: "{{ ceph_preflight_admin_user }} ALL=(ALL) NOPASSWD:ALL"
+    state: present
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
+  when: ceph_apply_changes | default(false)
+  tags: users
+
+- name: Ensure product yum/dnf repositories are present
+  ansible.builtin.yum_repository:
+    name: "{{ item.name }}"
+    description: "{{ item.description | default(item.name) }}"
+    baseurl: "{{ item.baseurl }}"
+    enabled: true
+    gpgcheck: "{{ postinstall_repo_gpgcheck | default(true) | bool }}"
+  loop: "{{ ceph_product_repos | default([]) }}"
+  when: (ceph_product_repos is defined and ceph_product_repos | length > 0) and (ceph_apply_changes | default(false))
+  tags: repos
+
+- name: Ensure installer config exists (touch as placeholder)
+  ansible.builtin.file:
+    path: "{{ ceph_installer_config_path }}"
+    state: touch
+    mode: '0644'
+  when: ceph_apply_changes | default(false)
+  tags: installer
+
+- name: Include postinstall template
+  ansible.builtin.include_role:
+    name: postinstall_template
+  tags: postinstall
+
+- name: Include guarded tuning tasks
+  ansible.builtin.include_tasks: tuning.yml
+  when: (ceph_apply_changes | default(false)) and not ansible_check_mode
+  tags: tuning

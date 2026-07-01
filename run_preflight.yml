@@ -1,0 +1,96 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars:
+    artifacts_dir: "{{ lookup('env', 'HOME') + '/.ansible/artifacts' }}"
+    products:
+      - rhel
+      - idm
+      - gitea
+      - openshift_local
+  tasks:
+    - name: Ensure artifacts dir exists
+      ansible.builtin.file:
+        path: "{{ artifacts_dir }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+
+    - name: Run preflight for each product
+      ansible.builtin.include_tasks: tasks/run_healthcheck_role.yml
+      vars:
+        healthcheck_product: "{{ role_name }}"
+        healthcheck_artifacts_dir: "{{ lookup('env', 'HOME') + '/.ansible/artifacts' }}"
+        healthcheck_mode_only: "{{ healthcheck_check_mode_only | default(true) | bool }}"
+      loop: "{{ products }}"
+      loop_control:
+        loop_var: role_name
+      tags: preflight
+
+    - name: Find preflight report files for package-gap rollup
+      ansible.builtin.find:
+        paths: "{{ artifacts_dir }}"
+        patterns: "*-preflight-report.json"
+        file_type: file
+      register: preflight_rollup_files
+      delegate_to: localhost
+      tags: report
+
+    - name: Read preflight report files for package-gap rollup
+      ansible.builtin.slurp:
+        src: "{{ item.path }}"
+      loop: "{{ preflight_rollup_files.files | default([]) }}"
+      register: preflight_rollup_content
+      delegate_to: localhost
+      when: (preflight_rollup_files.matched | default(0) | int) > 0
+      tags: report
+
+    - name: Initialize preflight package-gap rollup rows
+      ansible.builtin.set_fact:
+        preflight_package_gap_rollup_rows: []
+      tags: report
+
+    - name: Build preflight package-gap rollup rows
+      ansible.builtin.set_fact:
+        preflight_package_gap_rollup_rows: >-
+          {{
+            preflight_package_gap_rollup_rows + [
+              {
+                "product_name": (report_data.product_name | default(derived_product)),
+                "inventory_hostname": (report_data.inventory_hostname | default('unknown')),
+                "healthcheck_check_mode_only": (report_data.healthcheck_check_mode_only | default(true) | bool),
+                "missing_package_count": (missing_packages | length),
+                "missing_packages": missing_packages,
+                "source_file": source_file
+              }
+            ]
+          }}
+      vars:
+        report_data: "{{ item.content | b64decode | from_json }}"
+        missing_packages: "{{ report_data.missing_prerequisite_packages | default([]) }}"
+        source_file: "{{ item.source | basename }}"
+        derived_product: "{{ source_file | regex_replace('-preflight-report\\.json$', '') }}"
+      loop: "{{ preflight_rollup_content.results | default([]) }}"
+      when: (missing_packages | length) > 0
+      tags: report
+
+    - name: Write unified preflight package-gap rollup JSON
+      ansible.builtin.copy:
+        dest: "{{ artifacts_dir }}/preflight-package-gap-rollup.json"
+        content: "{{ preflight_package_gap_rollup_rows | default([]) | to_nice_json }}\n"
+      delegate_to: localhost
+      changed_when: false
+      tags: report
+
+    - name: Write unified preflight package-gap rollup CSV
+      ansible.builtin.copy:
+        dest: "{{ artifacts_dir }}/preflight-package-gap-rollup.csv"
+        content: |
+          product_name,inventory_hostname,healthcheck_check_mode_only,missing_package_count,missing_packages,source_file
+          {% for row in preflight_package_gap_rollup_rows | default([]) %}
+          {{ row.product_name }},{{ row.inventory_hostname }},{{ row.healthcheck_check_mode_only }},{{ row.missing_package_count }},"{{ (row.missing_packages | default([]) | join(';')) | replace('"', '""') }}",{{ row.source_file }}
+          {% endfor %}
+      delegate_to: localhost
+      changed_when: false
+      tags: report

@@ -1,0 +1,33 @@
+---
+product: acs
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_security_for_kubernetes/4.11
+hardware_requirements:
+  notes: "Refer to product docs for operator sizing and capacity planning."
+setup_requirements:
+  - "Guard tuning and destructive actions behind `apply_changes`."
+best_practices:
+  - "Test policy changes in staging; monitor cluster resource usage after tuning"
+scenarios:
+  install:
+    preflight:
+      - "Verify operator prerequisites and cluster capacity"
+    postinstall:
+      - "Enable and validate scanning and policy enforcement"
+  upgrade:
+    preflight:
+      - "Backup custom configuration and policies"
+    postinstall:
+      - "Re-run scans and validate policy enforcement"
+  migrate:
+    preflight:
+      - "Plan policy migration and external integrations"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup and export options for ACS policies and reports"
+    postinstall: []
+  restore:
+    preflight:
+      - "Test restore steps in a safe environment"
+    postinstall: []

@@ -1,0 +1,8 @@
+- Prerequisites: python3, database and required OS packages
+- Filesystems: ensure /var and /opt have sufficient space and proper mounts
+- Packages: required Satellite packages installed
+- Pip: `pip`, `setuptools`, `wheel` upgraded
+- Admin user: create `admin` and configure passwordless sudo
+- Repositories: enable Satellite repositories
+- Installer config: verify Satellite installer configuration
+- Secrets: `~/.ansible/conf/env.yml` contains unique product secrets and is ansible-vault encrypted

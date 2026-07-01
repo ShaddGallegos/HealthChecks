@@ -1,0 +1,56 @@
+product: satellite
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_satellite/6.19
+  - https://docs.redhat.com/en/documentation/red_hat_satellite/6.19/html/installing_satellite_server_in_a_connected_network_environment
+  - https://docs.redhat.com/en/documentation/red_hat_satellite/6.19/html/tuning_performance_of_red_hat_satellite
+hardware_requirements:
+  notes: "See the Satellite tuning and deployment guides for topology-specific sizing. Use tested reference topologies for production."
+os_requirements:
+  notes: "See product documentation for supported OS versions per Satellite release. Ensure subscription and repos are available."
+setup_requirements:
+  - "Prepare DNS, NTP/chrony, and certificate infrastructure"
+  - "Prepare valid Red Hat subscriptions and access to required repositories (or plan disconnected install)"
+  - "Ensure firewall rules allow required ports between Satellite Server, Capsules, managed hosts, and external services"
+  - "Configure dedicated admin user and service accounts per install guide"
+best_practices:
+  - "Use Red Hat tested topologies and follow the tuning guide for capacity planning"
+  - "Deploy Capsules behind load balancers for scale and redundancy when required"
+  - "Back up Satellite using documented backup procedures before upgrades or topology changes"
+scenarios:
+  install:
+    preflight:
+      - "Verify DNS resolution and hostnames for Satellite and Capsule hosts"
+      - "Verify NTP/time synchronization"
+      - "Verify network connectivity to required repositories or mirror servers"
+      - "Verify available disk, memory, and CPU against chosen topology (see tuning guide)"
+      - "Verify required ports are open and SELinux/firewall policies are compatible"
+    postinstall:
+      - "Run post-install validation checks and verify service health"
+      - "Verify content sync and capsule registration where applicable"
+  upgrade:
+    preflight:
+      - "Review upgrade notes and plan sequence for Satellite and Capsules"
+      - "Ensure recent backups exist and restoration procedures are validated"
+    postinstall:
+      - "Validate post-upgrade services, content, and integration points"
+  update:
+    preflight:
+      - "Verify patch readiness and pre-checks per update guide"
+    postinstall: []
+  migrate:
+    preflight:
+      - "Plan migrations using the documented migration and planning pages"
+    postinstall: []
+  backup:
+    preflight:
+      - "Verify backup procedures and storage destination"
+    postinstall:
+      - "Validate backups and restoration on a test environment"
+  snapshot:
+    preflight: []
+    postinstall: []
+  restore:
+    preflight:
+      - "Ensure backups exist and target environment is prepared"
+    postinstall:
+      - "Follow documented restore procedures and validate system state"

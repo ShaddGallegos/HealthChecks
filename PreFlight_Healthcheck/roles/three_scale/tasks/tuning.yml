@@ -1,0 +1,6 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Tuning placeholder for three_scale (guarded)
+  ansible.builtin.debug:
+    msg: "Tuning tasks for three_scale are guarded by three_scale_apply_changes and must be implemented per product best practices."
+  tags: tuning

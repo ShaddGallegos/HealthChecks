@@ -1,0 +1,17 @@
+---
+product: certificate_system
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_certificate_system/10
+best_practices:
+  - "Guard private-key handling and HSM changes behind `apply_changes`"
+  - "Perform key backups and test restore to ensure CA continuity"
+scenarios:
+  install:
+    preflight:
+      - "Verify HSM integration and secure key storage if used"
+    postinstall:
+      - "Validate certificate issuance, renewal, and revocation workflows"
+  backup:
+    preflight:
+      - "Verify backup encryption and storage policies"
+    postinstall: []

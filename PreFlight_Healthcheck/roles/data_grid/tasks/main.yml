@@ -1,0 +1,93 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in data_grid_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ data_grid_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: data_grid
+      product_required_mounts: ['/','/var','/opt/datagrid']
+      product_ports: [7800,11222]
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Check Java availability and version (non-destructive)
+  ansible.builtin.shell: java -version 2>&1 || true
+  register: java_ver
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for Data Grid / Infinispan packages (non-destructive)
+  ansible.builtin.shell: rpm -qa | egrep -i 'infinispan|data-grid|datagrid' || true
+  register: dg_pkgs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Detect JVM Xmx in running Java processes (non-destructive)
+  ansible.builtin.shell: ps -ef | egrep 'java' | egrep -o '\-Xmx[^ ]+' || true
+  register: jvm_xmx
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Set data_grid discovery report
+  ansible.builtin.set_fact:
+    data_grid_discovery_report:
+      inventory_hostname: "{{ inventory_hostname }}"
+      java: "{{ java_ver.stdout | default(java_ver.stderr | default('')) }}"
+      packages: "{{ dg_pkgs.stdout | default('') }}"
+      jvm_xmx: "{{ jvm_xmx.stdout | default('') }}"
+      preflight_template: "{{ preflight_report | default({}) }}"
+  tags: report
+
+- name: Archive data_grid discovery report (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/data_grid-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'product':'data_grid','report': data_grid_discovery_report | default({})} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

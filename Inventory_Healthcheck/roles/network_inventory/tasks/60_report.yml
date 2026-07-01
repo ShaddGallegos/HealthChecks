@@ -1,0 +1,266 @@
+---
+- name: Build consolidated CSV report with findings header
+  ansible.builtin.shell: |
+    export NMAP_XML="{{ network_inventory_nmap_out }}"
+    export HPING_TXT="{{ network_inventory_hping_out }}"
+    export AUDIT_DIR="{{ network_inventory_local_audit_dir }}"
+    export CSV_OUT="{{ network_inventory_csv_out }}"
+    export SUMMARY_OUT="{{ network_inventory_summary_csv_out }}"
+    python3 - << 'PYCODE'
+    import csv
+    import glob
+    import os
+    import xml.etree.ElementTree as ET
+
+    nmap_xml = os.environ["NMAP_XML"]
+    hping_txt = os.environ["HPING_TXT"]
+    audit_dir = os.environ["AUDIT_DIR"]
+    csv_out = os.environ["CSV_OUT"]
+    summary_out = os.environ["SUMMARY_OUT"]
+
+    headers = {{ network_inventory_report_headers | to_json }}
+    product_aliases = {{ network_inventory_product_aliases | to_json }}
+    product_scoring = {{ network_inventory_product_scoring | to_json }}
+    source_weights = {"sku": 4, "marker": 3, "service": 2, "os": 2, "misc": 1}
+
+    def detect_products(source_blobs):
+      matched = []
+      confidence = []
+      evidence = []
+      for product, aliases in product_aliases.items():
+        hits_by_source = {}
+        for source, blob in source_blobs.items():
+          text = (blob or "").lower()
+          hits = [alias for alias in aliases if alias in text]
+          if hits:
+            hits_by_source[source] = hits
+
+        if hits_by_source:
+          matched.append(product)
+          weighted_score = 0
+          hit_sources = set(hits_by_source.keys())
+          hit_fragments = []
+          for source, hits in hits_by_source.items():
+            weighted_score += source_weights.get(source, 1)
+            unique_hits = []
+            for hit in hits:
+              if hit not in unique_hits:
+                unique_hits.append(hit)
+            hit_fragments.append(f"{source}:[{', '.join(unique_hits)}]")
+
+          rule = product_scoring.get(product, {})
+          high_threshold = int(rule.get("high_threshold", 6))
+          medium_threshold = int(rule.get("medium_threshold", 3))
+          require_for_high = set(rule.get("require_for_high", []))
+
+          if weighted_score >= high_threshold and require_for_high.issubset(hit_sources):
+            level = "High"
+          elif weighted_score >= medium_threshold:
+            level = "Medium"
+          else:
+            level = "Low"
+
+          confidence.append(f"{product}:{level}")
+          evidence.append(f"{product} ({weighted_score}): {'; '.join(hit_fragments)}")
+
+      return matched, confidence, evidence
+
+    hping_data = {}
+    try:
+      with open(hping_txt, "r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        next(reader, None)
+        for row in reader:
+          if len(row) >= 3:
+            hping_data[row[0]] = {"uptime": row[1], "firewall": row[2]}
+    except Exception:
+      pass
+
+    local_facts = {}
+    for fact_file in glob.glob(os.path.join(audit_dir, "*.facts")):
+      ip = os.path.basename(fact_file).replace(".facts", "")
+      local_facts[ip] = {}
+      try:
+        with open(fact_file, "r", encoding="utf-8") as f:
+          for line in f:
+            if "::" in line:
+              k, v = line.strip().split("::", 1)
+              local_facts[ip][k] = v
+      except Exception:
+        pass
+
+    tree = ET.parse(nmap_xml)
+    root = tree.getroot()
+
+    level_rank = {"Low": 1, "Medium": 2, "High": 3}
+    host_product_levels = {}
+
+    def ingest_host_confidence(host_ip, confidence_entries):
+      if not host_ip or not confidence_entries:
+        return
+      for entry in confidence_entries.split(";"):
+        item = entry.strip()
+        if not item or ":" not in item:
+          continue
+        product, level = item.rsplit(":", 1)
+        product = product.strip()
+        level = level.strip()
+        if level not in level_rank:
+          continue
+        host_map = host_product_levels.setdefault(product, {})
+        prior = host_map.get(host_ip)
+        if prior is None or level_rank[level] > level_rank[prior]:
+          host_map[host_ip] = level
+
+    with open(csv_out, "w", newline="", encoding="utf-8") as f:
+      writer = csv.writer(f)
+      writer.writerow(headers)
+
+      for host in root.findall("host"):
+        addr = host.find("./address[@addrtype='ipv4']")
+        ip = addr.get("addr") if addr is not None else "Unknown"
+        os_match = host.find("./os/osmatch")
+        remote_os = os_match.get("name") if os_match is not None else "Unknown OS"
+
+        hp_meta = hping_data.get(ip, {"uptime": "N/A", "firewall": "N/A"})
+        lf = local_facts.get(ip, {})
+
+        l_name = lf.get("hostname", "N/A (No Auth)")
+        l_kernel = lf.get("kernel", "N/A")
+        l_virt = lf.get("virt_type", "N/A")
+        l_rhel = lf.get("rh_release", "N/A")
+        l_cores = lf.get("cpu_cores", "N/A")
+        l_count = lf.get("cpu_count", "N/A")
+        l_model = lf.get("cpu_model", "N/A")
+        l_pkgs = lf.get("pkg_count", "N/A")
+        l_sub = lf.get("subman_status", "N/A")
+        l_skus = lf.get("subman_skus", "N/A")
+        l_markers = lf.get("product_markers", "")
+        l_jb_cnt = lf.get("jboss_proc_count", "N/A")
+        l_jb_ver = lf.get("jboss_detected_versions", "N/A")
+
+        host_sources = {
+          "os": " | ".join([remote_os, l_rhel]),
+          "sku": " | ".join([l_sub, l_skus]),
+          "marker": " | ".join([l_markers, l_jb_cnt, l_jb_ver]),
+        }
+        matched_products, product_confidence, product_evidence = detect_products(host_sources)
+        products_detected = "; ".join(matched_products) if matched_products else "None Detected"
+        products_confidence = "; ".join(product_confidence) if product_confidence else "None"
+        products_evidence = " | ".join(product_evidence) if product_evidence else "No product markers found"
+
+        ports = host.findall("./ports/port")
+        if not ports:
+          ingest_host_confidence(ip, products_confidence)
+          writer.writerow([
+            ip, remote_os, "None", "None", "Closed", "None", "None",
+            hp_meta["uptime"], hp_meta["firewall"], l_name, l_kernel, l_virt, l_rhel,
+            l_cores, l_count, l_model, l_pkgs, l_sub, l_skus, products_detected, products_confidence, products_evidence,
+          ])
+          continue
+
+        for port in ports:
+          port_id = port.get("portid")
+          protocol = port.get("protocol")
+          state_node = port.find("state")
+          state = state_node.get("state") if state_node is not None else "unknown"
+
+          service = port.find("service")
+          service_name = service.get("name") if service is not None else "Unknown"
+          product = service.get("product") if service is not None else ""
+          version = service.get("version") if service is not None else ""
+          full_version = f"{product} {version}".strip() or "Unknown"
+
+          row_sources = {
+            "os": host_sources["os"],
+            "sku": host_sources["sku"],
+            "marker": host_sources["marker"],
+            "service": " | ".join([service_name, full_version]),
+            "misc": " | ".join([str(port_id), str(protocol), str(state)]),
+          }
+          row_products, row_confidence, row_evidence = detect_products(row_sources)
+          row_products_detected = "; ".join(row_products) if row_products else products_detected
+          row_products_confidence = "; ".join(row_confidence) if row_confidence else products_confidence
+          row_products_evidence = " | ".join(row_evidence) if row_evidence else products_evidence
+
+          ingest_host_confidence(ip, row_products_confidence)
+
+          writer.writerow([
+            ip, remote_os, port_id, protocol, state, service_name, full_version,
+            hp_meta["uptime"], hp_meta["firewall"], l_name, l_kernel, l_virt, l_rhel,
+            l_cores, l_count, l_model, l_pkgs, l_sub, l_skus, row_products_detected, row_products_confidence, row_products_evidence,
+          ])
+
+    with open(summary_out, "w", newline="", encoding="utf-8") as sf:
+      swriter = csv.writer(sf)
+      swriter.writerow(["Red Hat Product", "High", "Medium", "Low", "Total Hosts"])
+
+      product_order = list(product_aliases.keys())
+      ordered_products = [p for p in product_order if p in host_product_levels]
+      for product in sorted(host_product_levels.keys()):
+        if product not in ordered_products:
+          ordered_products.append(product)
+
+      for product in ordered_products:
+        levels = host_product_levels.get(product, {})
+        high = sum(1 for v in levels.values() if v == "High")
+        medium = sum(1 for v in levels.values() if v == "Medium")
+        low = sum(1 for v in levels.values() if v == "Low")
+        total = len(levels)
+        swriter.writerow([product, high, medium, low, total])
+
+    print("[+] Consolidated CSV report generated")
+    print("[+] Product confidence summary CSV generated")
+    PYCODE
+  args:
+    executable: /bin/bash
+  changed_when: true
+
+- name: Optionally build XLSX report from CSV
+  ansible.builtin.shell: |
+    export CSV_IN="{{ network_inventory_csv_out }}"
+    export SUMMARY_IN="{{ network_inventory_summary_csv_out }}"
+    export XLSX_OUT="{{ network_inventory_xlsx_out }}"
+    export REQUIRE_LIB="{{ network_inventory_require_openpyxl | bool }}"
+    python3 - << 'PYCODE'
+    import csv
+    import os
+    import sys
+
+    csv_in = os.environ["CSV_IN"]
+    summary_in = os.environ["SUMMARY_IN"]
+    xlsx_out = os.environ["XLSX_OUT"]
+    require_lib = os.environ["REQUIRE_LIB"].lower() == "true"
+
+    try:
+      from openpyxl import Workbook
+    except Exception:
+      if require_lib:
+        print("[-] openpyxl is required for XLSX export but not installed")
+        sys.exit(1)
+      print("[!] openpyxl not installed, skipping XLSX export")
+      sys.exit(0)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Findings"
+
+    with open(csv_in, "r", encoding="utf-8") as f:
+      reader = csv.reader(f)
+      for row in reader:
+        ws.append(row)
+
+    if os.path.exists(summary_in):
+      ws_summary = wb.create_sheet(title="Pivot Summary")
+      with open(summary_in, "r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        for row in reader:
+          ws_summary.append(row)
+
+    wb.save(xlsx_out)
+    print("[+] XLSX report generated")
+    PYCODE
+  args:
+    executable: /bin/bash
+  when: network_inventory_enable_xlsx | bool
+  changed_when: true

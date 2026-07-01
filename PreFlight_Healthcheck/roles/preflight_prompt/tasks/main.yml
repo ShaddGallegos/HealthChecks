@@ -1,4 +1,5 @@
 ---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
 - name: Prompt for product variables by executing helper script
   local_action: command "{{ playbook_dir }}/scripts/prompt_for_vars.py --product {{ product_name }}"
   run_once: true

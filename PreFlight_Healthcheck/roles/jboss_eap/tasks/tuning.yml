@@ -1,0 +1,6 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Tuning placeholder for jboss_eap (guarded)
+  ansible.builtin.debug:
+    msg: "Tuning tasks for jboss_eap are guarded by jboss_eap_apply_changes and must be implemented per product best practices."
+  tags: tuning

@@ -1,0 +1,28 @@
+---
+product: rhel
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9
+best_practices:
+  - "Guard kernel, package, and system-level changes behind `apply_changes` and schedule maintenance windows"
+  - "Test tuned profiles and sysctl changes in staging before production"
+  - "Use `tuned-adm` profiles where applicable and monitor after changes"
+scenarios:
+  install:
+    preflight:
+      - "Confirm baseline host prerequisites (NTP, DNS, repo access)"
+    postinstall:
+      - "Apply performance tuning (sysctl, ulimit, tuned) when `apply_changes` is true"
+  upgrade:
+    preflight:
+      - "Ensure backups of system configs"
+    postinstall:
+      - "Reapply tuned settings and validate system behavior"
+  backup:
+    preflight:
+      - "Validate backup tools and destinations"
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare target system OS major and packages to match source"
+    postinstall:
+      - "Validate services and re-run discovery checks"

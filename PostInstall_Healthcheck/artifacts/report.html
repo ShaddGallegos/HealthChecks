@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PostInstall Healthcheck Report</title>
+<style>
+body{font-family: Arial, Helvetica, sans-serif; padding:20px}
+.summary{border-collapse:collapse;margin-bottom:1rem}
+.summary th,.summary td{border:1px solid #ddd;padding:8px}
+h1,h2,h3,h4{margin:0.5rem 0}
+pre{background:#f8f8f8;padding:8px;overflow:auto}
+</style>
+</head>
+<body>
+<h1>PostInstall Healthcheck Report</h1>
+<p>Generated at: 2026-06-30T20:55:45.180715Z</p>
+<h2>Summary</h2>
+<table class="summary">
+<tr><th>Item</th><th>Added</th><th>Removed</th><th>Changed</th></tr>
+<tr><td>rpm_packages</td><td>1</td><td>1</td><td></td></tr>
+<tr><td>enabled_services</td><td>1</td><td>0</td><td></td></tr>
+<tr><td>running_services</td><td>1</td><td>0</td><td></td></tr>
+<tr><td>listening_tcp</td><td>1</td><td>1</td><td></td></tr>
+<tr><td>listening_udp</td><td>0</td><td>0</td><td></td></tr>
+<tr><td>users</td><td>1</td><td>0</td><td></td></tr>
+<tr><td>groups</td><td>1</td><td>0</td><td></td></tr>
+<tr><td>sudoers</td><td></td><td></td><td>True</td></tr>
+<tr><td>firewall</td><td></td><td></td><td>True</td></tr>
+<tr><td>selinux</td><td></td><td></td><td>False</td></tr>
+</table>
+
+<h2>Details</h2>
+<h3>rpm_packages</h3>
+<h4>Added</h4>
+<ul>
+  <li>pkgC-3.0</li>
+</ul>
+
+<h4>Removed</h4>
+<ul>
+  <li>pkgB-2.0</li>
+</ul>
+
+<h3>enabled_services</h3>
+<h4>Added</h4>
+<ul>
+  <li>mcp-bridge.service</li>
+</ul>
+
+<h4>Removed</h4><p>None</p>
+
+<h3>running_services</h3>
+<h4>Added</h4>
+<ul>
+  <li>mcp-bridge.service</li>
+</ul>
+
+<h4>Removed</h4><p>None</p>
+
+<h3>listening_tcp</h3>
+<h4>Added</h4>
+<ul>
+  <li>0.0.0.0:1776</li>
+</ul>
+
+<h4>Removed</h4>
+<ul>
+  <li>127.0.0.1:11434</li>
+</ul>
+
+<h3>listening_udp</h3>
+<h4>Added</h4><p>None</p>
+
+<h4>Removed</h4><p>None</p>
+
+<h3>users</h3>
+<h4>Added</h4>
+<ul>
+  <li>mcpuser:x:1001:1001:MCP:/home/mcpuser:/bin/bash</li>
+</ul>
+
+<h4>Removed</h4><p>None</p>
+
+<h3>groups</h3>
+<h4>Added</h4>
+<ul>
+  <li>mcpgroup:x:1001:</li>
+</ul>
+
+<h4>Removed</h4><p>None</p>
+
+<h3>sudoers</h3>
+<h4>Diff</h4>
+<pre>
+--- before_sudoers
++++ after_sudoers
+@@ -1 +1,2 @@
+ root ALL=(ALL) ALL
++admin ALL=(ALL) NOPASSWD:ALL
+
+</pre>
+<h3>firewall</h3>
+<h4>Diff</h4>
+<pre>
+--- before_firewall
++++ after_firewall
+@@ -1 +1 @@
+-No active firewall (sample)+Added rich rule for mcp-bridge
+
+</pre>
+<h3>selinux</h3>
+<h4>Diff</h4>
+<pre>
+
+</pre>
+</body>
+</html>

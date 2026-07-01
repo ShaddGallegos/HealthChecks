@@ -1,0 +1,298 @@
+---
+# noqa
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+# Collect a set of runtime artifacts useful for post-install healthchecks
+
+- name: Gather installed RPM packages
+  ansible.builtin.command:
+    cmd: rpm -qa
+  register: rpm_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather enabled services
+  ansible.builtin.command:
+    cmd: systemctl list-unit-files --type=service --state=enabled --no-pager --no-legend
+  register: enabled_services
+  changed_when: false
+  failed_when: false
+
+- name: Gather running services
+  ansible.builtin.command:
+    cmd: systemctl list-units --type=service --state=running --no-pager --no-legend
+  register: running_services
+  changed_when: false
+  failed_when: false
+
+- name: Gather listening TCP sockets
+  ansible.builtin.command:
+    cmd: ss -tnlp
+  register: ss_tcp
+  changed_when: false
+  failed_when: false
+
+- name: Gather listening UDP sockets
+  ansible.builtin.command:
+    cmd: ss -unlp
+  register: ss_udp
+  changed_when: false
+  failed_when: false
+
+- name: Gather block devices and partition layout (lsblk)
+  ansible.builtin.command:
+    cmd: lsblk -J -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL,SERIAL || true
+  register: lsblk_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather dmidecode system (if available)
+  ansible.builtin.shell: |
+    if command -v dmidecode >/dev/null 2>&1; then
+      dmidecode -t system || true
+    else
+      echo 'dmidecode-not-installed'
+    fi
+  register: dmidecode_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather PCI devices (lspci) if present
+  ansible.builtin.shell: |
+    if command -v lspci >/dev/null 2>&1; then
+      lspci -vvnn || true
+    else
+      echo 'lspci-not-installed'
+    fi
+  register: lspci_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather USB devices (lsusb) if present
+  ansible.builtin.shell: |
+    if command -v lsusb >/dev/null 2>&1; then
+      lsusb || true
+    else
+      echo 'lsusb-not-installed'
+    fi
+  register: lsusb_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather CPU info
+  ansible.builtin.command:
+    cmd: cat /proc/cpuinfo | grep 'model name' | uniq || true
+  register: cpuinfo_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather memory info
+  ansible.builtin.command:
+    cmd: free -m || true
+  register: mem_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather network interfaces (ip brief)
+  ansible.builtin.command:
+    cmd: ip -br addr
+  register: ip_brief
+  changed_when: false
+  failed_when: false
+
+- name: Gather network link status
+  ansible.builtin.command:
+    cmd: ip -br link
+  register: ip_link
+  changed_when: false
+  failed_when: false
+
+- name: Gather NetworkManager devices (nmcli) if present
+  ansible.builtin.shell: |
+    if command -v nmcli >/dev/null 2>&1; then
+      nmcli -t -f DEVICE,TYPE,STATE device || true
+    else
+      echo 'nmcli-not-installed'
+    fi
+  register: nmcli_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather subscription-manager identity (RHEL) if present
+  ansible.builtin.shell: |
+    if command -v subscription-manager >/dev/null 2>&1; then
+      subscription-manager identity || true
+    else
+      echo 'subscription-manager-not-present'
+    fi
+  register: subscription_out
+  changed_when: false
+  failed_when: false
+
+- name: Check insights-client status (RHEL)
+  ansible.builtin.shell: |
+    if command -v insights-client >/dev/null 2>&1; then
+      insights-client --status || true
+    else
+      echo 'insights-client-not-installed'
+    fi
+  register: insights_out
+  changed_when: false
+  failed_when: false
+
+- name: Check for rhc binary (if applicable)
+  ansible.builtin.shell: |
+    if command -v rhc >/dev/null 2>&1; then
+      rhc --version || true
+    else
+      echo 'rhc-not-installed'
+    fi
+  register: rhc_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather available updates (dnf/yum check-update) (non-destructive)
+  ansible.builtin.shell: |
+    if command -v dnf >/dev/null 2>&1; then
+      dnf check-update --refresh || true
+    elif command -v yum >/dev/null 2>&1; then
+      yum check-update || true
+    else
+      echo 'no-package-manager-detected'
+    fi
+  register: updates_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather yum/dnf updateinfo summary if available
+  ansible.builtin.shell: |
+    if command -v dnf >/dev/null 2>&1; then
+      dnf updateinfo summary || true
+    elif command -v yum >/dev/null 2>&1; then
+      yum updateinfo summary || true
+    else
+      echo 'no-updateinfo-available'
+    fi
+  register: updateinfo_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather recent kernel/dmesg errors
+  ansible.builtin.shell: dmesg -T | tail -n 200 || true
+  register: dmesg_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather recent system journal errors (last 200 lines)
+  ansible.builtin.shell: journalctl -p err -n 200 --no-pager || true
+  register: journal_errs
+  changed_when: false
+  failed_when: false
+
+- name: Gather passwd entries
+  ansible.builtin.command:
+    cmd: getent passwd
+  register: passwd_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather group entries
+  ansible.builtin.command:
+    cmd: getent group
+  register: group_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather sudoers and /etc/sudoers.d content
+  ansible.builtin.shell: |
+    set -o pipefail
+    cat /etc/sudoers 2>/dev/null || true
+    if [ -d /etc/sudoers.d ]; then
+      for f in /etc/sudoers.d/*; do
+        [ -f "$f" ] && echo "---FILE:$f---" && sed -n '1,400p' "$f" || true
+      done
+    fi
+  register: sudoers_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather firewall state (firewall-cmd or iptables-save)
+  ansible.builtin.shell: |
+    if command -v firewall-cmd >/dev/null 2>&1; then
+      firewall-cmd --list-all || true
+    else
+      iptables-save || true
+    fi
+  register: firewall_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather SELinux state
+  ansible.builtin.command:
+    cmd: getenforce
+  register: selinux_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather sysctl values
+  ansible.builtin.command:
+    cmd: sysctl -a
+  register: sysctl_out
+  changed_when: false
+  failed_when: false
+
+- name: Assemble postinstall snapshot
+  ansible.builtin.set_fact:
+    postinstall_snapshot:
+      inventory_hostname: "{{ inventory_hostname }}"
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      ansible_facts:
+        distribution: "{{ ansible_facts['distribution'] | default('') }}"
+        distribution_major: "{{ ansible_facts['distribution_major_version'] | default('') }}"
+        kernel: "{{ ansible_facts['kernel'] | default('') }}"
+        ipv4_addresses: "{{ ansible_all_ipv4_addresses | default([]) }}"
+      rpm_packages: "{{ rpm_out.stdout_lines | default([]) }}"
+      enabled_services: "{{ enabled_services.stdout_lines | default([]) }}"
+      running_services: "{{ running_services.stdout_lines | default([]) }}"
+      listening_tcp: "{{ ss_tcp.stdout_lines | default([]) }}"
+      listening_udp: "{{ ss_udp.stdout_lines | default([]) }}"
+      users: "{{ passwd_out.stdout_lines | default([]) }}"
+      groups: "{{ group_out.stdout_lines | default([]) }}"
+      sudoers: "{{ sudoers_out.stdout | default('') }}"
+      firewall: "{{ firewall_out.stdout | default('') }}"
+      selinux: "{{ selinux_out.stdout | default('') }}"
+      sysctl: "{{ sysctl_out.stdout_lines | default([]) }}"
+      lsblk: "{{ lsblk_out.stdout | default('') }}"
+      dmidecode: "{{ dmidecode_out.stdout | default('') }}"
+      lspci: "{{ lspci_out.stdout | default('') }}"
+      lsusb: "{{ lsusb_out.stdout | default('') }}"
+      cpuinfo: "{{ cpuinfo_out.stdout | default('') }}"
+      memory: "{{ mem_out.stdout | default('') }}"
+      ip_brief: "{{ ip_brief.stdout | default('') }}"
+      ip_link: "{{ ip_link.stdout | default('') }}"
+      nmcli: "{{ nmcli_out.stdout | default('') }}"
+      subscription: "{{ subscription_out.stdout | default('') }}"
+      insights: "{{ insights_out.stdout | default('') }}"
+      rhc: "{{ rhc_out.stdout | default('') }}"
+      updates: "{{ updates_out.stdout | default('') }}"
+      updateinfo: "{{ updateinfo_out.stdout | default('') }}"
+      dmesg: "{{ dmesg_out.stdout | default('') }}"
+      journal_errors: "{{ journal_errs.stdout | default('') }}"
+
+- name: Ensure artifacts dir exists on controller
+  ansible.builtin.file:
+    path: "{{ artifacts_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+
+- name: Write snapshot to controller
+  ansible.builtin.copy:
+    content: "{{ postinstall_snapshot | to_nice_json }}\n"
+    dest: "{{ artifacts_dir }}/{{ inventory_hostname }}-{{ ansible_date_time.iso8601 }}.json"
+  delegate_to: localhost
+  changed_when: false
+
+- name: Include shared PostInstall tuning checks
+  ansible.builtin.include_role:
+    name: shared_tuning
+  tags: tuning

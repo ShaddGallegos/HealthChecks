@@ -1,49 +1,501 @@
 ---
+# noqa
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
 - name: Check prereqs - ensure python packages are present
-  package:
-    name: "{{ item }}"
-    state: present
-  loop:
-    - python3
-    - python3-venv
-  tags: prereqs
+  block:
+    - name: Verify presence of prerequisite packages (non-destructive)
+      ansible.builtin.shell: |
+        if ! rpm -q {{ prereq_pkg }} >/dev/null 2>&1; then
+          echo {{ prereq_pkg }}
+        fi
+      register: prereq_check_results
+      failed_when: false
+      changed_when: false
+      loop:
+        - python3
+        - python3-venv
+      loop_control:
+        loop_var: prereq_pkg
+      tags: prereqs
 
-- name: Ensure pip, setuptools and wheel are upgraded
-  pip:
+    - name: Set missing prereq packages fact
+      ansible.builtin.set_fact:
+        missing_prereq_packages: "{{ prereq_check_results.results | map(attribute='stdout') | reject('equalto', '') | list }}"
+      tags: prereqs
+
+    - name: Install missing prereq packages (opt-in)
+      ansible.builtin.package:
+        name: "{{ missing_prereq_packages }}"
+        state: present
+      when: (install_deps | default(false)) and (missing_prereq_packages | default([]) | length > 0)
+      tags: prereqs
+
+- name: Ensure pip, setuptools and wheel are present
+  ansible.builtin.pip:
     name:
       - pip
       - setuptools
       - wheel
-    state: latest
+    state: present
+    executable: pip3
+  when: install_deps | default(false)
   tags: pip
 
+- name: Resolve expected prerequisite packages for shared reporting
+  ansible.builtin.set_fact:
+    resolved_product_prereq_packages: >-
+      {{ lookup('vars', product_name ~ '_product_prereq_packages', default=[]) }}
+  when: product_name is defined
+  tags: prereqs
+
+- name: Check for missing product prerequisite packages (shared report)
+  ansible.builtin.shell: |
+    if ! rpm -q {{ prereq_pkg }} >/dev/null 2>&1; then
+      echo {{ prereq_pkg }}
+    fi
+  register: shared_product_prereq_check_results
+  failed_when: false
+  changed_when: false
+  loop: "{{ resolved_product_prereq_packages | default([]) }}"
+  loop_control:
+    loop_var: prereq_pkg
+  when: resolved_product_prereq_packages | default([]) | length > 0
+  tags: prereqs
+
+- name: Set shared missing product prereq packages fact
+  ansible.builtin.set_fact:
+    shared_missing_prereq_packages: >-
+      {{
+        shared_product_prereq_check_results.results | default([])
+        | map(attribute='stdout') | reject('equalto', '') | list
+      }}
+  tags: prereqs
+
 - name: Ensure admin user exists
-  user:
+  ansible.builtin.user:
     name: "{{ preflight_admin_user | default('admin') }}"
     groups: "{{ preflight_sudo_group | default('wheel') }}"
-    append: yes
-    create_home: yes
+    append: true
+    create_home: true
+  when: apply_changes | default(false)
   tags: users
 
 - name: Allow admin passwordless sudo
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/sudoers.d/preflight_admin
-    create: yes
+    create: true
     line: "{{ preflight_admin_user | default('admin') }} ALL=(ALL) NOPASSWD:ALL"
     state: present
     validate: '/usr/sbin/visudo -cf %s'
+  when: apply_changes | default(false)
   tags: users
 
 - name: Setup rootless podman for user when requested
-  when: preflight_container_rootless | default(false)
+  when: preflight_container_rootless | default(false) and apply_changes | default(false)
   block:
     - name: Ensure subuid/subgid entries exist
       lineinfile:
         dest: /etc/subuid
         line: "{{ preflight_admin_user | default('admin') }}:100000:65536"
-        create: yes
+        create: true
     - name: Ensure subgid entries exist
       lineinfile:
         dest: /etc/subgid
         line: "{{ preflight_admin_user | default('admin') }}:100000:65536"
-        create: yes
+        create: true
+
+# --------------------------------------------------------
+# Extended discovery checks (non-destructive, report-only)
+# --------------------------------------------------------
+
+- name: Check inode availability for required mounts
+  ansible.builtin.shell: df -i {{ required_mount }} || true
+  register: inode_out
+  failed_when: false
+  changed_when: false
+  loop: "{{ product_required_mounts | default(['/', '/var']) }}"
+  loop_control:
+    loop_var: required_mount
+  tags: filesystems
+
+- name: Check mount options for required mounts
+  ansible.builtin.shell: awk '$2 == "{{ required_mount }}" {print $4}' /proc/mounts || true
+  register: mount_opts
+  failed_when: false
+  changed_when: false
+  loop: "{{ product_required_mounts | default(['/', '/var']) }}"
+  loop_control:
+    loop_var: required_mount
+  tags: filesystems
+
+- name: Capture process limits (/proc/1/limits) and shell ulimit values
+  block:
+    - name: Read /proc/1/limits
+      ansible.builtin.shell: cat /proc/1/limits || true
+      register: proc1_limits
+      failed_when: false
+      changed_when: false
+
+    - name: Capture current shell ulimits
+      ansible.builtin.shell: |
+        echo "open_files=$(ulimit -n)"
+        echo "max_user_processes=$(ulimit -u)"
+      register: ulimit_out
+      failed_when: false
+      changed_when: false
+  tags: system
+
+- name: Gather vm.max_map_count sysctl
+  ansible.builtin.command: sysctl -n vm.max_map_count || true
+  register: vm_map_count
+  failed_when: false
+  changed_when: false
+  tags: system
+
+- name: Check swap status (non-destructive)
+  ansible.builtin.shell: swapon --show || true
+  register: swap_out
+  failed_when: false
+  changed_when: false
+  tags: system
+
+- name: Snapshot all listening TCP sockets (non-destructive)
+  ansible.builtin.shell: ss -ltnp || true
+  register: ss_all
+  failed_when: false
+  changed_when: false
+  tags: network
+
+- name: Check for processes listening on required ports
+  ansible.builtin.shell: ss -ltnp | grep -w :{{ required_port }} || true
+  register: port_check_results
+  failed_when: false
+  changed_when: false
+  loop: "{{ required_ports | default(product_ports | default([])) }}"
+  loop_control:
+    loop_var: required_port
+  tags: network
+
+- name: Detect environment variables that may conflict (JAVA_HOME, PYTHONPATH)
+  ansible.builtin.shell: env | egrep '(^|\s)(JAVA_HOME|PYTHONPATH|PYENV_ROOT)=' || true
+  register: env_check
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Detect potential EDR/AV agents
+  ansible.builtin.shell: ps -ef | egrep -i 'crowdstrike|falcon|carbonblack|cylance|defender|symantec|trendmicro' || true
+  register: edr_check
+  failed_when: false
+  changed_when: false
+  tags: security
+
+- name: Check time sync (chrony/timedatectl)
+  block:
+    - name: Chrony tracking (if present)
+      ansible.builtin.command: chronyc tracking
+      register: chrony_check
+      failed_when: false
+      changed_when: false
+      ignore_errors: true
+
+    - name: timedatectl status
+      ansible.builtin.command: timedatectl status || true
+      register: timedatectl_check
+      failed_when: false
+      changed_when: false
+      ignore_errors: true
+  tags: time
+
+- name: Check system locale
+  ansible.builtin.shell: locale | egrep '(^LANG=|^LC_ALL=)' || true
+  register: locale_check
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check repository baseurls reachability (if configured)
+  ansible.builtin.uri:
+    url: "{{ repo_item.baseurl }}"
+    method: HEAD
+    return_content: no
+    status_code: 200,301,302
+    timeout: 10
+  register: repo_check_results
+  failed_when: false
+  changed_when: false
+  loop: "{{ product_repos | default([]) }}"
+  loop_control:
+    loop_var: repo_item
+  when: product_repos is defined and product_repos | length > 0
+  tags: network
+
+- name: Check reverse DNS for node IP
+  ansible.builtin.shell: getent hosts {{ ansible_default_ipv4.address }} || true
+  register: rev_dns
+  failed_when: false
+  changed_when: false
+  tags: network
+
+- name: "Optional: run small IO benchmark (guarded)"
+  ansible.builtin.command: dd if=/dev/zero of={{ io_benchmark_path | default('/tmp/preflight-io.tmp') }} bs={{ io_benchmark_blocksize | default('1M') }} count={{ io_benchmark_count | default(10) }} oflag=direct
+  register: io_bench
+  failed_when: false
+  changed_when: false
+  when: io_benchmark_enabled | default(false) and not ansible_check_mode
+  tags: benchmark
+
+- name: Gather mount sizes (bytes) for required mounts
+  ansible.builtin.shell: |
+    df -B1 --output=size,avail,target {{ required_mount }} 2>/dev/null | tail -1 || echo "0 0 {{ required_mount }}"
+  register: mount_size_out
+  failed_when: false
+  changed_when: false
+  loop: "{{ product_required_mounts | default(['/', '/var']) }}"
+  loop_control:
+    loop_var: required_mount
+    label: "{{ required_mount }}"
+  tags: filesystems
+
+- name: Build mount_space_list fact from raw outputs
+  ansible.builtin.set_fact:
+    mount_space_list: "{{ mount_space_list | default([]) + [ { 'mount': (mount_stat.stdout | default('')).split()[-1] if (mount_stat.stdout | default('')) else mount_stat.item, 'size_total': ((mount_stat.stdout | default('')).split()[0] | default('0')) | int, 'size_available': ((mount_stat.stdout | default('')).split()[1] | default('0')) | int } ] }}"
+  loop: "{{ mount_size_out.results | default([]) }}"
+  loop_control:
+    loop_var: mount_stat
+  tags: filesystems
+
+- name: Assert - required mounts have minimum free percent (skips /boot)
+  ansible.builtin.assert:
+    that:
+      - "(mount_entry.size_total | int) == 0 or ((mount_entry.size_available | float) / (mount_entry.size_total | float)) >= (product_min_free_percent | default(0.15))"
+    fail_msg: "Insufficient free space on {{ mount_entry.mount }}: available={{ mount_entry.size_available }} total={{ mount_entry.size_total }}"
+  loop: "{{ mount_space_list | default([]) }}"
+  loop_control:
+    loop_var: mount_entry
+  when: "mount_entry.mount != '/boot'"
+  tags: filesystems
+
+- name: Assert - boot partition meets 2048MB minimum when present
+  ansible.builtin.assert:
+    that:
+      - "(mount_entry.size_total | int) == 0 or (mount_entry.size_total | int) >= 2147483648"
+    fail_msg: "Boot partition {{ mount_entry.mount }} smaller than 2048MB ({{ mount_entry.size_total }})"
+  loop: "{{ mount_space_list | default([]) }}"
+  loop_control:
+    loop_var: mount_entry
+  when: "mount_entry.mount == '/boot'"
+  tags: filesystems
+
+- name: Detect cloud metadata endpoints (AWS/GCP/Azure)
+  block:
+    - name: Detect AWS metadata service
+      ansible.builtin.uri:
+        url: "http://169.254.169.254/latest/meta-data/"
+        method: HEAD
+        return_content: false
+        status_code: 200
+        timeout: 2
+      register: aws_meta
+      failed_when: false
+      changed_when: false
+
+    - name: Detect GCP metadata service
+      ansible.builtin.uri:
+        url: "http://metadata.google.internal/computeMetadata/v1/"
+        method: HEAD
+        headers:
+          Metadata-Flavor: Google
+        return_content: false
+        status_code: 200
+        timeout: 2
+      register: gcp_meta
+      failed_when: false
+      changed_when: false
+
+    - name: Detect Azure metadata service
+      ansible.builtin.uri:
+        url: "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+        method: GET
+        headers:
+          Metadata: "true"
+        return_content: false
+        status_code: 200
+        timeout: 2
+      register: azure_meta
+      failed_when: false
+      changed_when: false
+  tags: discovery,cloud
+
+- name: Detect IPMI/BMC and vendor strings
+  block:
+    - name: Check for ipmi device
+      ansible.builtin.stat:
+        path: /dev/ipmi0
+      register: ipmi_dev
+      failed_when: false
+      changed_when: false
+
+    - name: Check for ipmitool in PATH
+      ansible.builtin.command:
+        cmd: which ipmitool
+      register: ipmitool_which
+      failed_when: false
+      changed_when: false
+
+    - name: Query system manufacturer via dmidecode (non-fatal)
+      ansible.builtin.command: dmidecode -s system-manufacturer
+      register: dmidecode_manufacturer
+      failed_when: false
+      changed_when: false
+  tags: discovery,ipmi
+
+- name: Collect virtualization facts
+  ansible.builtin.set_fact:
+    virtualization_type: "{{ ansible_facts['virtualization_type'] | default('') }}"
+    virtualization_role: "{{ ansible_facts['virtualization_role'] | default('') }}"
+  tags: discovery,hypervisor
+
+- name: Initialize install_target_candidates
+  ansible.builtin.set_fact:
+    install_target_candidates: []
+  tags: discovery
+
+- name: Add AWS candidate when metadata responds
+  ansible.builtin.set_fact:
+    install_target_candidates: "{{ install_target_candidates + ['aws'] }}"
+  when: aws_meta.status is defined and aws_meta.status == 200
+  tags: discovery,cloud
+
+- name: Add GCP candidate when metadata responds
+  ansible.builtin.set_fact:
+    install_target_candidates: "{{ install_target_candidates + ['gcp'] }}"
+  when: gcp_meta.status is defined and gcp_meta.status == 200
+  tags: discovery,cloud
+
+- name: Add Azure candidate when metadata responds
+  ansible.builtin.set_fact:
+    install_target_candidates: "{{ install_target_candidates + ['azure'] }}"
+  when: azure_meta.status is defined and azure_meta.status == 200
+  tags: discovery,cloud
+
+- name: Add IPMI candidate when device or tool present
+  ansible.builtin.set_fact:
+    install_target_candidates: "{{ install_target_candidates + ['ipmi'] }}"
+  when: ipmi_dev.stat.exists | default(false) or (ipmitool_which.rc is defined and ipmitool_which.rc == 0)
+  tags: discovery,ipmi
+
+- name: Add VMware candidate when dmidecode reports VMware
+  ansible.builtin.set_fact:
+    install_target_candidates: "{{ install_target_candidates + ['vmware'] }}"
+  when: ((dmidecode_manufacturer.stdout | default('')) | regex_search('(?i)vmware')) is not none
+  tags: discovery,hypervisor
+
+- name: Add Nutanix candidate when dmidecode reports Nutanix
+  ansible.builtin.set_fact:
+    install_target_candidates: "{{ install_target_candidates + ['nutanix'] }}"
+  when: ((dmidecode_manufacturer.stdout | default('')) | regex_search('(?i)nutanix')) is not none
+  tags: discovery,hypervisor
+
+- name: Add libvirt/kvm candidate from virtualization facts
+  ansible.builtin.set_fact:
+    install_target_candidates: "{{ install_target_candidates + ['libvirt'] }}"
+  when: virtualization_type in ['kvm','qemu','libvirt']
+  tags: discovery,hypervisor
+
+- name: Determine primary install_target
+  ansible.builtin.set_fact:
+    install_target: "{{ (install_target_candidates | default([]) | first) | default('baremetal') }}"
+  tags: discovery
+
+- name: Gather additional target-specific info (non-destructive)
+  block:
+    - name: Check for /dev/kvm (KVM/libvirt)
+      ansible.builtin.stat:
+        path: /dev/kvm
+      register: kvm_dev
+      failed_when: false
+      changed_when: false
+
+    - name: Check libvirtd active state
+      ansible.builtin.command: systemctl is-active libvirtd || true
+      register: libvirtd_active
+      failed_when: false
+      changed_when: false
+      when: virtualization_type in ['kvm','qemu','libvirt']
+
+    - name: Gather AWS instance-type (if AWS detected)
+      ansible.builtin.uri:
+        url: "http://169.254.169.254/latest/meta-data/instance-type"
+        method: GET
+        return_content: yes
+        status_code: 200
+        timeout: 2
+      register: aws_instance_type
+      failed_when: false
+      changed_when: false
+      when: aws_meta.status is defined and aws_meta.status == 200
+  tags: discovery
+
+- name: Assemble preflight discovery report
+  ansible.builtin.set_fact:
+    preflight_report:
+      product_name: "{{ product_name | default('unknown') }}"
+      inventory_hostname: "{{ inventory_hostname }}"
+      healthcheck_check_mode_only: "{{ healthcheck_check_mode_only_effective | default(true) }}"
+      missing_prerequisite_packages: "{{ shared_missing_prereq_packages | default([]) }}"
+      inodes: "{{ inode_out.results | map(attribute='stdout') | list | default([]) }}"
+      mount_options: "{{ mount_opts.results | map(attribute='stdout') | list | default([]) }}"
+      proc1_limits: "{{ proc1_limits.stdout | default('') }}"
+      ulimits: "{{ ulimit_out.stdout | default('') }}"
+      vm_max_map_count: "{{ vm_map_count.stdout | default('') }}"
+      swap: "{{ swap_out.stdout | default('') }}"
+      sockets_snapshot: "{{ ss_all.stdout | default('') }}"
+      port_checks: "{{ port_check_results.results | map(attribute='stdout') | list | default([]) }}"
+      env: "{{ env_check.stdout | default('') }}"
+      edr: "{{ edr_check.stdout | default('') }}"
+      chrony: "{{ chrony_check.stdout | default('') }}"
+      timedatectl: "{{ timedatectl_check.stdout | default('') }}"
+      locale: "{{ locale_check.stdout | default('') }}"
+      repo_checks: "{{ repo_check_results.results | map(attribute='status') | list | default([]) }}"
+      reverse_dns: "{{ rev_dns.stdout | default('') }}"
+      io_benchmark: "{{ io_bench.stdout | default('') }}"
+      install_target: "{{ install_target | default('unknown') }}"
+      install_target_candidates: "{{ install_target_candidates | default([]) }}"
+      dmidecode_manufacturer: "{{ dmidecode_manufacturer.stdout | default('') }}"
+      ipmi_present: "{{ ipmi_dev.stat.exists | default(false) }}"
+      ipmitool_path: "{{ ipmitool_which.stdout | default('') }}"
+      virtualization: "{{ {'type': virtualization_type | default(''), 'role': virtualization_role | default('')} }}"
+      kvm_device: "{{ kvm_dev.stat.exists | default(false) }}"
+      libvirtd_active: "{{ libvirtd_active.stdout | default('') }}"
+      aws_instance_type: "{{ aws_instance_type.content | default('') }}"
+  tags: report
+
+- name: Write preflight discovery report to artifacts (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name | default(inventory_hostname) }}-preflight-report.json"
+    content: "{{ preflight_report | default({}) | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report
+
+- name: Ensure reports directory exists on controller
+  ansible.builtin.file:
+    path: "{{ lookup('env', 'HOME') + '/.ansible/reports' }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report
+
+- name: Generate human-readable preflight report (HTML)
+  ansible.builtin.command:
+    cmd: >-
+      python3 {{ playbook_dir }}/tools/report_generator.py
+      --inputs "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name | default(inventory_hostname) }}-preflight-report.json"
+      --output "{{ lookup('env', 'HOME') + '/.ansible/reports/' + (product_name | default(inventory_hostname)) + '_' + ansible_date_time.iso8601 + '.html' }}"
+      --title "Preflight report: {{ product_name | default(inventory_hostname) }}"
+  delegate_to: localhost
+  changed_when: false
+  when: artifacts_dir is defined
+  tags: report

@@ -1,0 +1,22 @@
+---
+product: quay
+source_urls:
+  - https://docs.quay.io
+hardware_requirements:
+  notes: "Quay (container registry) needs durable storage (filesystem or S3), sufficient IOPS, and TLS certificates for production."
+setup_requirements:
+  - "Provision persistent storage and verify mount points and permissions"
+  - "Obtain TLS certificates and configure authentication backends"
+best_practices:
+  - "Use external object storage for large artifact repositories and monitor storage utilization"
+scenarios:
+  install:
+    preflight:
+      - "Verify storage availability and permissions"
+      - "Check TLS certificates and registry domain configuration"
+    postinstall:
+      - "Validate push/pull workflows and image lifecycle policies"
+  backup:
+    preflight:
+      - "Confirm backup strategy for repository metadata and configuration"
+    postinstall: []

@@ -1,0 +1,17 @@
+---
+product: data_grid
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_data_grid/8.6
+best_practices:
+  - "Guard memory/JVM tuning behind `apply_changes` and test under load"
+  - "Monitor network latency and throughput continuously"
+scenarios:
+  install:
+    preflight:
+      - "Verify memory and network requirements for in-memory data grid"
+    postinstall:
+      - "Tune JVM and cache settings based on observed workload"
+  backup:
+    preflight:
+      - "Confirm snapshot/backup approach for cached data"
+    postinstall: []

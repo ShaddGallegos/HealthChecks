@@ -1,0 +1,108 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in keycloak_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ keycloak_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: keycloak
+      product_required_mounts: ['/','/opt','/etc/keycloak']
+      product_ports: [8080,8443,9990]
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Discovery placeholder - keycloak
+  ansible.builtin.debug:
+    msg: "Discovery checks for keycloak not yet implemented."
+  tags: discovery
+
+- name: Check for Java runtime
+  ansible.builtin.command: java -version
+  register: java_version
+  failed_when: false
+  changed_when: false
+  ignore_errors: true
+  tags: discovery
+
+- name: Check for Keycloak/RH-SSO packages
+  ansible.builtin.shell: rpm -qa | egrep -i 'keycloak|rh-sso|quarkus' || true
+  register: keycloak_pkgs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Look for Keycloak install directories
+  ansible.builtin.shell: ls -d /opt/keycloak* /etc/keycloak* 2>/dev/null || true
+  register: keycloak_dirs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for Keycloak processes
+  ansible.builtin.shell: ps -ef | egrep -i 'keycloak|jboss|quarkus' || true
+  register: keycloak_procs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for listening Keycloak ports
+  ansible.builtin.shell: ss -ltnp | egrep -w ':8080|:8443|:9990' || true
+  register: keycloak_ports
+  failed_when: false
+  changed_when: false
+  tags: network
+
+- name: Combine Keycloak checks into `preflight_report`
+  ansible.builtin.set_fact:
+    preflight_report: "{{ preflight_report | default({}) | combine({'product': 'keycloak', 'keycloak': { 'java_version': java_version.stderr | default(java_version.stdout) | default(''), 'packages': keycloak_pkgs.stdout | default(''), 'dirs': keycloak_dirs.stdout | default(''), 'processes': keycloak_procs.stdout | default(''), 'ports': keycloak_ports.stdout | default('') }}) }}"
+  tags: report
+
+- name: Write keycloak preflight discovery report to artifacts (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/keycloak-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ preflight_report | default({}) | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

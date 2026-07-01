@@ -1,0 +1,24 @@
+{
+  "inventory_hostname": "host.example.com",
+  "timestamp": "2026-06-30T12:30:00",
+  "ansible_facts": {
+    "distribution": "RHEL",
+    "distribution_major": "8",
+    "kernel": "5.14",
+    "ipv4_addresses": ["10.0.0.10"]
+  },
+  "rpm_packages": [
+    "pkgA-1.0",
+    "pkgC-3.0"
+  ],
+  "enabled_services": ["ssh.service","mcp-bridge.service"],
+  "running_services": ["ssh.service","mcp-bridge.service"],
+  "listening_tcp": ["0.0.0.0:22","0.0.0.0:1776"],
+  "listening_udp": [],
+  "users": ["root:x:0:0:root:/root:/bin/bash","appuser:x:1000:1000:App:/home/appuser:/bin/bash","mcpuser:x:1001:1001:MCP:/home/mcpuser:/bin/bash"],
+  "groups": ["root:x:0:","appuser:x:1000:","mcpgroup:x:1001:"],
+  "sudoers": "root ALL=(ALL) ALL\nadmin ALL=(ALL) NOPASSWD:ALL\n",
+  "firewall": "Added rich rule for mcp-bridge\n",
+  "selinux": "Enforcing",
+  "sysctl": ["net.ipv4.ip_forward = 0"]
+}

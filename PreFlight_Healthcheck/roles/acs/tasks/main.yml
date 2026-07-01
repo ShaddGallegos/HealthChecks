@@ -1,0 +1,99 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  ignore_errors: true
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in acs_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ acs_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: acs
+      product_required_mounts: ['/','/var']
+      product_ports: []
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Check for oc/kubectl clients (non-destructive)
+  ansible.builtin.shell: command -v oc || command -v kubectl || true
+  register: cluster_clients
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for ACS operator packages (non-destructive)
+  ansible.builtin.shell: rpm -qa | egrep -i 'advanced-cluster-security|stackrox|rhacs' || true
+  register: acs_pkgs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for ACS operator CSVs/subscriptions (non-destructive)
+  ansible.builtin.shell: |
+    if command -v oc >/dev/null 2>&1; then
+      oc get csv -n openshift-operators 2>/dev/null | egrep -i 'advanced-cluster-security|stackrox|rhacs' || true
+    else
+      echo 'oc-not-present'
+    fi
+  register: acs_csvs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Set acs discovery report fact
+  ansible.builtin.set_fact:
+    acs_discovery_report:
+      inventory_hostname: "{{ inventory_hostname }}"
+      clients: "{{ cluster_clients.stdout | default('') }}"
+      packages: "{{ acs_pkgs.stdout | default('') }}"
+      csvs: "{{ acs_csvs.stdout | default('') }}"
+      preflight_template: "{{ preflight_report | default({}) }}"
+  tags: report
+
+- name: Write acs preflight discovery report to artifacts (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/acs-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'product':'acs','report': acs_discovery_report | default({})} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

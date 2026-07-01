@@ -1,0 +1,35 @@
+---
+product: aap_eda
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.7
+hardware_requirements:
+  notes: "Follow AAP sizing and tuning guidance; adjust for EDA event processing workload as needed."
+os_requirements:
+  notes: "See AAP system requirements page for supported OS and architectures."
+setup_requirements:
+  - "Prepare monitoring and logging for EDA consumers and producers"
+  - "Ensure backups include EDA state and configuration"
+best_practices:
+  - "Guard tuning and destructive changes behind `apply_changes` and `not ansible_check_mode`."
+  - "Test EDA event flows after any post-install tuning or scaling changes."
+scenarios:
+  install:
+    preflight:
+      - "Verify AAP prerequisites and EDA component availability"
+    postinstall:
+      - "Apply configuration tuning for event handling only when `apply_changes` is true"
+  upgrade:
+    preflight:
+      - "Ensure EDA data backups before upgrade"
+    postinstall:
+      - "Validate event delivery and consumer health"
+  backup:
+    preflight:
+      - "Verify backup procedures include EDA state"
+    postinstall:
+      - "Test restores for EDA components in a staging environment"
+  restore:
+    preflight:
+      - "Prepare target environment and ensure matching topology"
+    postinstall:
+      - "Validate EDA service continuity after restore"

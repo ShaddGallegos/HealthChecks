@@ -1,0 +1,215 @@
+---
+network_inventory_report_headers:
+  - "Host IP"
+  - "Remote OS (Nmap)"
+  - "Port"
+  - "Protocol"
+  - "State"
+  - "Service Name"
+  - "Version Banner"
+  - "Est. Uptime"
+  - "Firewall State"
+  - "Local Hostname"
+  - "Kernel"
+  - "Virt Type"
+  - "RHEL Release"
+  - "CPU Cores"
+  - "Total Procs"
+  - "CPU Model"
+  - "Installed Packages"
+  - "Subman Status"
+  - "Active Subman SKUs"
+  - "Red Hat Products Detected"
+  - "Red Hat Product Confidence"
+  - "Red Hat Product Evidence"
+
+network_inventory_product_aliases:
+  "Red Hat Enterprise Linux (RHEL)":
+    - "red hat enterprise linux"
+    - "rhel"
+    - "redhat-release"
+  "Red Hat Device Edge":
+    - "device edge"
+  "Red Hat OpenShift":
+    - "openshift"
+    - "ocp"
+  "Red Hat OpenShift AI":
+    - "openshift ai"
+    - "rhoai"
+  "Red Hat Enterprise Linux AI (RHEL AI)":
+    - "rhel ai"
+    - "enterprise linux ai"
+  "Red Hat AI Enterprise":
+    - "ai enterprise"
+  "Red Hat AI Inference Server":
+    - "ai inference server"
+    - "vllm"
+    - "triton"
+  "Red Hat OpenStack Platform":
+    - "openstack"
+    - "rhosp"
+  "Red Hat Advanced Cluster Management for Kubernetes":
+    - "advanced cluster management"
+    - "rhacm"
+  "Red Hat Advanced Cluster Security for Kubernetes":
+    - "advanced cluster security"
+    - "rhacs"
+    - "stackrox"
+  "Red Hat Ansible Automation Platform":
+    - "ansible automation platform"
+    - "aap"
+    - "automation controller"
+    - "awx"
+  "Red Hat Ansible Automation Platform w/EDA":
+    - "event-driven ansible"
+    - "ansible-rulebook"
+    - "ansible-eda"
+  "Red Hat Ansible Lightspeed":
+    - "ansible lightspeed"
+  "Red Hat Satellite":
+    - "satellite"
+    - "katello"
+    - "capsule"
+  "Red Hat Insights":
+    - "insights"
+    - "insights-client"
+  "Red Hat Developer Hub":
+    - "developer hub"
+    - "backstage-rhdh"
+    - "rhdh"
+  "Red Hat JBoss Enterprise Application Platform (EAP)":
+    - "jboss"
+    - "eap"
+    - "wildfly"
+  "Red Hat JBoss Web Server":
+    - "jboss web server"
+    - "jws"
+    - "tomcat"
+  "Red Hat Application Foundations":
+    - "application foundations"
+  "Red Hat AMQ":
+    - "red hat amq"
+    - "amq"
+    - "activemq"
+    - "artemis"
+    - "qpid"
+  "Red Hat 3scale API Management":
+    - "3scale"
+    - "apicast"
+  "Red Hat Data Grid":
+    - "data grid"
+    - "infinispan"
+  "Red Hat build of Quarkus":
+    - "quarkus"
+  "Red Hat build of Apache Camel":
+    - "apache camel"
+    - "camel"
+  "Red Hat build of Keycloak":
+    - "keycloak"
+    - "rhbk"
+  "Red Hat Directory Server":
+    - "389-ds"
+    - "dirsrv"
+    - "directory server"
+  "Red Hat Certificate System":
+    - "certificate system"
+    - "dogtag"
+    - "pki-tomcat"
+  "Red Hat Ceph Storage":
+    - "ceph"
+    - "cephadm"
+    - "rados"
+  "Red Hat Quay":
+    - "quay"
+    - "quay-registry"
+  "Migration Toolkit for Applications / Virtualization":
+    - "migration toolkit"
+    - "mtv"
+    - "mta"
+    - "tackle"
+
+network_inventory_product_scoring:
+  "Red Hat Enterprise Linux (RHEL)":
+    high_threshold: 4
+    medium_threshold: 2
+    require_for_high: []
+  "Red Hat OpenShift":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat OpenShift AI":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat OpenStack Platform":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat Advanced Cluster Management for Kubernetes":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat Advanced Cluster Security for Kubernetes":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat Ansible Automation Platform":
+    high_threshold: 7
+    medium_threshold: 3
+    require_for_high:
+      - sku
+  "Red Hat Ansible Automation Platform w/EDA":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat Satellite":
+    high_threshold: 7
+    medium_threshold: 3
+    require_for_high:
+      - sku
+  "Red Hat Insights":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat JBoss Enterprise Application Platform (EAP)":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat AMQ":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat 3scale API Management":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat Data Grid":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat build of Keycloak":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat Ceph Storage":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker
+  "Red Hat Quay":
+    high_threshold: 6
+    medium_threshold: 3
+    require_for_high:
+      - marker

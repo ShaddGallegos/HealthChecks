@@ -1,0 +1,17 @@
+---
+product: openshift
+source_urls:
+  - https://docs.openshift.com/container-platform/latest/
+best_practices:
+  - "Guard cluster-wide kernel and network tuning behind `apply_changes` and maintenance windows"
+  - "Test cluster upgrades and node replacement in staging before production"
+scenarios:
+  install:
+    preflight:
+      - "Verify node resource allocation and storage classes"
+    postinstall:
+      - "Tune kubelet, scheduler, and storage classes based on workload profiles"
+  upgrade:
+    preflight:
+      - "Backup etcd and validate operator compatibility"
+    postinstall: []

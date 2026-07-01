@@ -1,0 +1,11 @@
+---
+- name: Print output summary
+  ansible.builtin.debug:
+    msg:
+      - "Discovered inventory INI : {{ network_inventory_inventory_out }}"
+      - "Live hosts list          : {{ network_inventory_live_hosts }}"
+      - "Nmap XML                 : {{ network_inventory_nmap_out }}"
+      - "Local audit dir          : {{ network_inventory_local_audit_dir }}/"
+      - "CSV report               : {{ network_inventory_csv_out }}"
+      - "Product summary CSV      : {{ network_inventory_summary_csv_out }}"
+      - "XLSX report              : {{ network_inventory_xlsx_out if (network_inventory_enable_xlsx | bool) else 'disabled' }}"

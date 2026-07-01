@@ -1,0 +1,23 @@
+---
+product: device_edge
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_device_edge
+best_practices:
+  - "Guard firmware, driver, and kernel module changes behind `apply_changes` and scheduled maintenance windows"
+  - "Validate OTA update and rollback procedures in a staging environment before production"
+scenarios:
+  install:
+    preflight:
+      - "Confirm baseline prerequisites (NTP, DNS, image access)"
+    postinstall:
+      - "Apply journald/log rotation and storage retention settings when `apply_changes` is true"
+  upgrade:
+    preflight:
+      - "Confirm backups of configuration and artifacts"
+    postinstall:
+      - "Validate agent updates and connectivity"
+  restore:
+    preflight:
+      - "Prepare target with matching OS and drivers"
+    postinstall:
+      - "Validate restored device operation and connectivity"

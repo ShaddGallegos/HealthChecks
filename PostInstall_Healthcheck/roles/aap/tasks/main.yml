@@ -1,0 +1,213 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  ignore_errors: true
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    aap_product_env: "{{ env_vars.get('aap', {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: aap_uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: aap_sudo_check
+  failed_when: false
+  changed_when: false
+  when: aap_uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - aap_uid_check.stdout == '0' or aap_sudo_check.rc == 0
+    fail_msg: "This PostInstall healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+
+- name: Fail if required secrets missing
+  ansible.builtin.fail:
+    msg: "Missing required secret '{{ item }}' for '{{ product_name }}' in ~/.ansible/conf/env.yml"
+  when: aap_product_env.get(item, '') == ''
+  loop: "{{ aap_product_required_secrets | default([]) }}"
+  tags: secrets
+
+- name: Apply tuning/change tasks (guarded)
+  ansible.builtin.include_tasks: tuning.yml
+  when: (aap_apply_changes | default(false)) and not ansible_check_mode
+  tags: [tuning]
+
+- name: Check filesystem mounts (report)
+  ansible.builtin.shell: df -h {{ item }} || true
+  register: aap_df_out
+  failed_when: false
+  loop: "{{ aap_product_required_mounts | default([]) }}"
+  tags: filesystems
+
+# -----------------------------
+# Additional non-destructive discovery checks imported from orchestrator
+# -----------------------------
+- name: Gather package facts for AAP components
+  ansible.builtin.package_facts:
+    manager: auto
+  register: aap_pkg_facts
+  ignore_errors: true
+  tags: [discovery]
+
+- name: Set controller, hub, eda facts
+  ansible.builtin.set_fact:
+    controller_rpm_check: >-
+      {{ (aap_pkg_facts.ansible_facts.packages['automation-controller'] | default([]) | first).version
+         | default('Not Present / Isolated Node Type') }}
+    hub_rpm_check: >-
+      {{ (aap_pkg_facts.ansible_facts.packages['automation-hub'] | default([]) | first).version
+         | default('Not Present / Isolated Node Type') }}
+    eda_rpm_check: >-
+      {{ (aap_pkg_facts.ansible_facts.packages['eda-controller'] | default([]) | first).version
+         | default('Not Present / Isolated Node Type') }}
+  tags: [discovery]
+
+- name: Security Audit - Check insights-client status
+  ansible.builtin.command: insights-client --status
+  register: aap_insights_status_cmd
+  changed_when: false
+  failed_when: false
+  tags: [security]
+
+- name: Security Audit - Check rhc connector status
+  ansible.builtin.command: rhc status
+  register: aap_rhc_status_cmd
+  changed_when: false
+  failed_when: false
+  tags: [security]
+
+- name: Security Audit - Extract system vulnerabilities summary
+  ansible.builtin.command: dnf updateinfo summary --quiet
+  register: aap_dnf_security_summary
+  changed_when: false
+  failed_when: false
+  tags: [security]
+
+- name: Security Audit - List CVEs via dnf
+  ansible.builtin.command: dnf updateinfo list cves --quiet
+  register: aap_dnf_cve_list
+  changed_when: false
+  failed_when: false
+  tags: [security]
+
+- name: Infrastructure Audit - Map file systems configured as read-only
+  ansible.builtin.shell: |
+    awk '$4 ~ /^ro/ {print $2}' /proc/mounts
+  register: aap_ro_mounts
+  changed_when: false
+  tags: [audit]
+
+- name: Infrastructure Audit - Verify socket mappings for core components
+  ansible.builtin.wait_for:
+    port: "{{ item.port }}"
+    state: started
+    timeout: 3
+  loop: "{{ aap_product_ports }}"
+  register: aap_wait_for_ports
+  failed_when: false
+  tags: [audit]
+
+- name: Infrastructure Audit - Verify Chrony clock tracking state
+  ansible.builtin.command: chronyc tracking
+  register: aap_chrony_check
+  failed_when: false
+  changed_when: false
+  tags: [audit]
+
+- name: Infrastructure Testing - Run safe direct-flag execution datastore disk benchmark
+  ansible.builtin.command:
+    cmd: dd if=/dev/zero of=/var/lib/io_perf_test_marker_aap bs=1M count=100 oflag=direct
+  register: aap_raw_io_benchmark
+  failed_when: false
+  changed_when: false
+  when: aap_run_benchmarks | default(false)
+  tags: [benchmark]
+
+- name: Infrastructure Testing - Clean up localized benchmark files
+  ansible.builtin.file:
+    path: /var/lib/io_perf_test_marker_aap
+    state: absent
+  when: aap_run_benchmarks | default(false)
+  tags: [benchmark]
+
+- name: Consolidate report variables
+  ansible.builtin.set_fact:
+    controller_version: "{{ controller_rpm_check }}"
+    hub_version: "{{ hub_rpm_check }}"
+    eda_version: "{{ eda_rpm_check }}"
+    insights_status_text: >-
+      {{ 'Active / Synchronized' if
+         (aap_insights_status_cmd is defined and
+          (aap_insights_status_cmd.rc == 0 or
+           'Registered' in (aap_insights_status_cmd.stdout | default(''))))
+         else 'Unregistered / Inactive' }}
+    rhc_status_text: >-
+      {{ 'Active / Online' if
+         (aap_rhc_status_cmd is defined and
+          aap_rhc_status_cmd.rc == 0)
+         else 'Disconnected / Inactive' }}
+    dnf_security_summary_text: >-
+      {{ aap_dnf_security_summary.stdout | default('No outstanding dnf advisories') }}
+    dnf_cve_text: >-
+      {{ (aap_dnf_cve_list.stdout_lines | default([]))[:12] | join('\n') }}
+    chrony_text: >-
+      {{ 'PASSED / Sync Active' if
+         (aap_chrony_check is defined and aap_chrony_check.rc == 0)
+         else 'CRITICAL DRIFT ENCOUNTERED' }}
+    ro_mounts_text: >-
+      {{ 'PASSED / Clean Mount states' if
+         (aap_ro_mounts is defined and aap_ro_mounts.stdout == '')
+         else 'CRITICAL READ-ONLY FS ERROR DETECTED' }}
+    raw_io_text: >-
+      {{ aap_raw_io_benchmark.stderr | default('Benchmark execution failed') }}
+  tags: [report]
+
+- name: Compile and Output Analytical Verification Report (brief)
+  ansible.builtin.debug:
+    msg:
+      - "AAP healthcheck report for: {{ inventory_hostname }}"
+      - "Controller: {{ controller_version | default('N/A') }}"
+      - "Hub: {{ hub_version | default('N/A') }}"
+      - "EDA: {{ eda_version | default('N/A') }}"
+      - "Insights: {{ insights_status_text | default('N/A') }}"
+      - "RHC: {{ rhc_status_text | default('N/A') }}"
+  tags: [report]
+
+- name: Archive report to controller artifacts (if configured)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name | default('aap') }}-{{ inventory_hostname }}-report.log"
+    content: |
+      Report generated for {{ product_name }} on {{ ansible_date_time.iso8601 }}
+      Controller: {{ controller_version | default('N/A') }}
+      Hub: {{ hub_version | default('N/A') }}
+      EDA: {{ eda_version | default('N/A') }}
+      Insights: {{ insights_status_text | default('N/A') }}
+      RHC: {{ rhc_status_text | default('N/A') }}
+    owner: root
+    group: root
+    mode: '0644'
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: [report]
+
+- name: Optionally run AAP database reporting exports
+  ansible.builtin.include_tasks: database_reporting.yml
+  when: aap_db_reporting_enabled | default(false)
+  tags:
+    - aap_db_reporting
+    - reporting

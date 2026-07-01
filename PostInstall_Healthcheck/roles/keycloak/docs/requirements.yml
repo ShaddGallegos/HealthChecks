@@ -1,0 +1,18 @@
+---
+product: keycloak
+source_urls:
+  - https://www.keycloak.org/documentation.html
+  - https://docs.redhat.com/en/documentation/red_hat_single_sign-on
+best_practices:
+  - "Guard key rotation and private-key changes behind `apply_changes`"
+  - "Test backup and restore of keystores and user databases"
+scenarios:
+  install:
+    preflight:
+      - "Confirm secure keystore handling and TLS configuration"
+    postinstall:
+      - "Rotate keys as required and verify SSO flows"
+  backup:
+    preflight:
+      - "Validate backup encryption and storage policies"
+    postinstall: []

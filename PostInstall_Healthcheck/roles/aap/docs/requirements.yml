@@ -1,0 +1,79 @@
+---
+product: aap
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.7/install-ref_cont_aap_system_requirements
+  - https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.7/install-proc_installing_containerized_aap
+  - https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.7/plan-assembly_overview_tested_deployment_models
+  - https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.7/administer-back_up_and_restore_your_containerized_deployment
+hardware_requirements:
+  vm:
+    ram_gb: 16
+    ram_gb_notes: "32 GB required for growth-topology bundled installations when hub_seed_collections=true"
+    cpus: 4
+    disk_total_gb: 60
+    install_dir_gb: 15
+    var_tmp_online_gb: 1
+    var_tmp_offline_gb: 3
+    tmp_offline_gb: 10
+    disk_iops: 3000
+  notes: "Use Red Hat tested reference topologies (growth/enterprise) for production sizing."
+os_requirements:
+  rhel:
+    supported_majors: ['9','10']
+    min_versions: ['9.6','10']
+  arch: ['x86_64','aarch64','s390x','ppc64le']
+database_requirements:
+  managed: "PostgreSQL 15 (installer-managed)"
+  external: "PostgreSQL 15, 16, or 17 (customer-provided) - external DB must have ICU support; backup/restore recommended with PG15"
+setup_requirements:
+  user: "Dedicated non-root user on RHEL host with sudo for installation and container service account"
+  managed_nodes: "Dedicated user and SSH public key authentication for managed nodes"
+  network: "Internet access required for default online install; configure firewall ports per chosen topology"
+  storage: "Podman does not support storing container images on NFS; avoid NFS for Podman storage backend"
+  subscription: "Valid AAP and RHEL subscriptions to access required repositories"
+best_practices:
+  - "Use Red Hat tested topologies for production (enterprise topology)."
+  - "For constrained environments use a growth topology."
+  - "Size nodes according to tested reference architectures and adjust for collection seeding."
+  - "Use external DB only when necessary; ensure ICU support and backup/restore strategy."
+  - "Guard all tuning or destructive changes behind `apply_changes` and avoid running in check mode."
+scenarios:
+  install:
+    preflight:
+      - "Verify dedicated non-root user with sudo (or passwordless sudo for automation)"
+      - "Verify RHEL version is supported (see os_requirements)"
+      - "Verify CPU architecture is supported"
+      - "Verify host meets RAM/CPU/disk/IOPS requirements"
+      - "Verify `podman` is installed and accessible on host"
+      - "Verify network connectivity to required registries and repositories (eg. registry.redhat.io)"
+      - "Verify required ports are open per chosen topology"
+    postinstall:
+      - "Run installer-provided validation/playbooks and verify services are reachable"
+      - "If using external DB, verify connection and ICU support"
+  upgrade:
+    preflight:
+      - "Review upgrade path and release notes; determine upgrade path if migrating from older major/minor versions"
+      - "Verify backups exist (use installer backup playbooks)"
+    postinstall:
+      - "Follow containerized/operator upgrade procedures documented in the upgrade guide"
+  update:
+    preflight:
+      - "Verify patch compatibility with current topology and components"
+    postinstall: []
+  migrate:
+    preflight:
+      - "Plan topology changes using reference architectures and migration documentation"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup artifacts, inventory configuration, and backup_dir settings"
+    postinstall:
+      - "Use installer `backup` playbook; verify backup files and retention policies"
+  snapshot:
+    preflight: []
+    postinstall: []
+  restore:
+    preflight:
+      - "Ensure backup was taken with the same installer family/version and inventory"
+    postinstall:
+      - "Restore using installer `restore` playbook; follow restore precautions (hostnames, admin credentials)"

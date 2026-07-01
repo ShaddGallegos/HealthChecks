@@ -1,0 +1,17 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    artifacts_dir: "{{ lookup('env', 'HOME') + '/.ansible/artifacts' }}"
+    reports_dir: "{{ lookup('env', 'HOME') + '/.ansible/reports' }}"
+    formats: "{{ formats | default('html') }}"
+  tasks:
+    - name: Run aggregate reports script
+      ansible.builtin.command:
+        cmd: >-
+          python3 HealthChecks/tools/aggregate_reports.py
+          --artifacts "{{ artifacts_dir }}"
+          --output-dir "{{ reports_dir }}"
+          --formats "{{ formats }}"
+      changed_when: false

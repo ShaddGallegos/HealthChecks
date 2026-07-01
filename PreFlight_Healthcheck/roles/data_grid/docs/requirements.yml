@@ -1,0 +1,21 @@
+---
+product: data_grid
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_data_grid/8.6
+hardware_requirements:
+  notes: "Data Grid is an in-memory data grid; memory and network bandwidth are critical."
+setup_requirements:
+  - "Plan JVM sizing and cluster memory allocation"
+  - "Ensure low-latency network between cluster nodes"
+best_practices:
+  - "Run load and fault-injection tests to validate data durability and performance"
+scenarios:
+  install:
+    preflight:
+      - "Verify memory and network latency requirements"
+    postinstall:
+      - "Validate data partitioning and redundancy settings"
+  backup:
+    preflight:
+      - "Confirm data export and snapshot mechanisms"
+    postinstall: []

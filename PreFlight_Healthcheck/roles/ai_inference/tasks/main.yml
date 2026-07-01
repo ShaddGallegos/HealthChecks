@@ -1,0 +1,102 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in ai_inference_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ ai_inference_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: ai_inference
+      product_required_mounts: ['/','/var','/opt/ai_inference']
+      product_ports: []
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Detect accelerators via lspci (AI inference)
+  ansible.builtin.shell: lspci -nnk | egrep -i 'nvidia|amd|gpu|accelerator' || true
+  register: lspci_accel
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for NVIDIA runtime (nvidia-smi)
+  ansible.builtin.command: command -v nvidia-smi || true
+  register: nvidia_smi
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for ROCm runtime (rocminfo)
+  ansible.builtin.shell: /opt/rocm/bin/rocminfo 2>/dev/null || true
+  register: rocm_check
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for inference server packages (non-destructive)
+  ansible.builtin.shell: rpm -qa | egrep -i 'inference|ai-inference|modelserver|triton|tensorflow-serving' || true
+  register: inference_pkgs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Set ai_inference discovery report
+  ansible.builtin.set_fact:
+    ai_inference_discovery_report:
+      inventory_hostname: "{{ inventory_hostname }}"
+      os: "{{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_major_version'] }}"
+      lspci_accelerators: "{{ lspci_accel.stdout | default('') }}"
+      nvidia_smi: "{{ nvidia_smi.stdout | default('') }}"
+      rocm: "{{ rocm_check.stdout | default('') }}"
+      inference_packages: "{{ inference_pkgs.stdout | default('') }}"
+      preflight_template: "{{ preflight_report | default({}) }}"
+  tags: report
+
+- name: Write ai_inference preflight discovery report to artifacts (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/ai_inference-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'product':'ai_inference','report': ai_inference_discovery_report | default({})} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

@@ -1,0 +1,67 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in rhel_ai_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ rhel_ai_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+    product_name: rhel_ai
+    product_required_mounts: ['/','/var']
+    product_ports: []
+    product_repos: []
+    io_benchmark_enabled: false
+  tags: preflight
+
+- name: Discovery placeholder - rhel_ai
+  ansible.builtin.debug:
+    msg: "Discovery checks for rhel_ai not yet implemented."
+  tags: discovery
+
+- name: Archive discovery report (placeholder)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/rhel_ai-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'product':'rhel_ai','report': preflight_report | default({})} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

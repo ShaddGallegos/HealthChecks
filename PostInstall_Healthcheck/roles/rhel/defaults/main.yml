@@ -1,0 +1,22 @@
+---
+rhel_preflight_admin_user: admin
+rhel_preflight_container_rootless: false
+rhel_preflight_sudo_group: wheel
+rhel_product_repos:
+  - name: rhel-base
+    description: RHEL Base repository
+    baseurl: ""
+rhel_product_prereq_packages:
+  - python3
+  - python3-venv
+  - python3-pip
+rhel_product_required_secrets:
+  - admin_password
+  - repo_baseurl
+  - installer_token
+rhel_product_required_mounts:
+  - /var
+  - /opt
+rhel_installer_config_path: /etc/rhel-installer.conf
+rhel_install_deps: false
+rhel_apply_changes: false

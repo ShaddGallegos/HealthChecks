@@ -1,0 +1,20 @@
+---
+profile: min
+exclude_paths:
+  - .git/
+  - .ansible/
+  - PreFlight_Healthcheck/roles/*/docs/
+  - PostInstall_Healthcheck/roles/*/docs/
+
+skip_list:
+  - var-naming
+  - jinja[spacing]
+  - yaml[commas]
+  - yaml[truthy]
+  - yaml[line-length]
+  - risky-shell-pipe
+  - risky-file-permissions
+  - fqcn[action-core]
+  - key-order[task]
+  - name[casing]
+  - package-latest

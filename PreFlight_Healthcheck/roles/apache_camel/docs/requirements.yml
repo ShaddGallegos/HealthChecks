@@ -1,0 +1,23 @@
+---
+product: apache_camel
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_build_of_apache_camel/4.18
+hardware_requirements:
+  notes: "Follow application requirements; Camel is a framework and requirements depend on deployment (containers, JVM heap, etc)."
+os_requirements:
+  notes: "Check supported Java versions and container runtime requirements in product docs."
+setup_requirements:
+  - "Ensure compatible JVM and runtime environment if deploying on RHEL/JVM"
+  - "If deploying on OpenShift, validate container images and resource limits"
+best_practices:
+  - "Tune JVM heap and GC according to message throughput and latency requirements"
+scenarios:
+  install:
+    preflight:
+      - "Validate Java/runtime versions and required libraries"
+    postinstall:
+      - "Verify route behavior and message throughput"
+  upgrade:
+    preflight:
+      - "Test application compatibility with new Camel/runtime versions"
+    postinstall: []

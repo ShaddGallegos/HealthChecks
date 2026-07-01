@@ -1,0 +1,21 @@
+---
+# ansible-lint: skip_list=var-naming
+ansible_lightspeed_preflight_admin_user: admin
+ansible_lightspeed_preflight_container_rootless: false
+ansible_lightspeed_preflight_sudo_group: wheel
+ansible_lightspeed_product_repos: []
+ansible_lightspeed_product_prereq_packages: []
+ansible_lightspeed_product_required_secrets: []
+ansible_lightspeed_product_required_mounts: []
+ansible_lightspeed_installer_config_path: /etc/ansible_lightspeed-installer.conf
+ansible_lightspeed_product_ports: []
+ansible_lightspeed_install_deps: false
+ansible_lightspeed_apply_changes: false
+ansible_lightspeed_validate_platform_certs: false
+ansible_lightspeed_show_help: false
+ansible_lightspeed_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+ansible_lightspeed_container_runtime: podman
+ansible_lightspeed_container_registry: registry.redhat.io

@@ -1,0 +1,17 @@
+---
+certificate_system_postinstall_admin_user: admin
+certificate_system_postinstall_sudo_group: wheel
+certificate_system_product_repos: []
+certificate_system_product_prereq_packages: []
+certificate_system_product_required_secrets: []
+certificate_system_product_required_mounts: []
+certificate_system_installer_config_path: /etc/certificate_system-installer.conf
+certificate_system_product_ports: []
+certificate_system_install_deps: false
+certificate_system_apply_changes: false
+certificate_system_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+certificate_system_container_runtime: podman
+certificate_system_container_registry: registry.redhat.io

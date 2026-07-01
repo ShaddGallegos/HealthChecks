@@ -1,0 +1,29 @@
+---
+- name: Build active host list from RustScan
+  ansible.builtin.shell: "grep '->' {{ network_inventory_rust_out }} | awk '{print $1}' | sort -u > {{ network_inventory_output_dir }}/active_ports_hosts.tmp"
+  args:
+    executable: /bin/bash
+  changed_when: true
+  failed_when: false
+
+- name: Check active host list file
+  ansible.builtin.stat:
+    path: "{{ network_inventory_output_dir }}/active_ports_hosts.tmp"
+  register: network_inventory_active_hosts_tmp
+
+- name: Run Nmap against hosts with detected open ports
+  ansible.builtin.command:
+    cmd: "nmap -sV -sC -O -iL {{ network_inventory_output_dir }}/active_ports_hosts.tmp -oX {{ network_inventory_nmap_out }}"
+  when: network_inventory_active_hosts_tmp.stat.exists and (network_inventory_active_hosts_tmp.stat.size | int) > 0
+  changed_when: true
+
+- name: Run Nmap against all discovered hosts
+  ansible.builtin.command:
+    cmd: "nmap -sV -sC -O -iL {{ network_inventory_live_hosts }} -oX {{ network_inventory_nmap_out }}"
+  when: (not network_inventory_active_hosts_tmp.stat.exists) or (network_inventory_active_hosts_tmp.stat.size | int) == 0
+  changed_when: true
+
+- name: Remove temporary active host list
+  ansible.builtin.file:
+    path: "{{ network_inventory_output_dir }}/active_ports_hosts.tmp"
+    state: absent

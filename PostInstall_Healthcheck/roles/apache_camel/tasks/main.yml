@@ -1,0 +1,56 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: apache_camel_uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: apache_camel_sudo_check
+  failed_when: false
+  changed_when: false
+  when: apache_camel_uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      -  apache_camel_uid_check.stdout == '0' or apache_camel_sudo_check.rc == 0
+    fail_msg: "This PostInstall healthcheck requires root or passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in apache_camel_supported_rhel_major_versions
+    fail_msg: "Supported RHEL major versions: {{ apache_camel_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include postinstall template
+  ansible.builtin.include_role:
+    name: postinstall_template
+  tags: postinstall
+
+- name: Include guarded tuning tasks
+  ansible.builtin.include_tasks: tuning.yml
+  when: (apache_camel_apply_changes | default(false)) and not ansible_check_mode
+  tags: tuning
+
+- name: PostInstall placeholder - apache_camel
+  ansible.builtin.debug:
+    msg: "PostInstall tasks for apache_camel are not yet implemented. Use apache_camel_apply_changes to enable tuning."
+  tags: postinstall
+
+- name: Archive postinstall report (placeholder)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/apache_camel-{{ inventory_hostname }}-postinstall-report.json"
+    content: "{}"
+    mode: '0644'
+    delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

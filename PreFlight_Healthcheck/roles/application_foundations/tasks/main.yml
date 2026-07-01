@@ -1,0 +1,82 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in application_foundations_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ application_foundations_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: application_foundations
+      product_required_mounts: ['/','/var','/opt/app_foundations']
+      product_ports: []
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Check for common runtimes (java, node, dotnet, python)
+  ansible.builtin.shell: |
+    command -v java || true; 
+    command -v mvn || true; 
+    command -v node || true; 
+    command -v dotnet || true; 
+    command -v python3 || true
+  register: runtimes
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Set application_foundations discovery report
+  ansible.builtin.set_fact:
+    application_foundations_discovery_report:
+      inventory_hostname: "{{ inventory_hostname }}"
+      runtimes: "{{ runtimes.stdout | default('') }}"
+      preflight_template: "{{ preflight_report | default({}) }}"
+  tags: report
+
+- name: Archive application_foundations discovery report (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/application_foundations-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'product':'application_foundations','report': application_foundations_discovery_report | default({})} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

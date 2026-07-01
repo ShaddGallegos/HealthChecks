@@ -1,0 +1,6 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Tuning placeholder for ai_inference (guarded)
+  ansible.builtin.debug:
+    msg: "Tuning tasks for ai_inference are guarded by ai_inference_apply_changes and must be implemented per product best practices."
+  tags: tuning

@@ -1,0 +1,115 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in jboss_eap_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ jboss_eap_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: jboss_eap
+      product_required_mounts: ['/','/opt','/opt/eap','/var']
+      product_ports: [8080,8443,9990]
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Discovery placeholder - jboss_eap
+  ansible.builtin.debug:
+    msg: "Discovery checks for jboss_eap not yet implemented."
+  tags: discovery
+
+- name: Check for Java runtime
+  ansible.builtin.command: java -version
+  register: java_version
+  failed_when: false
+  changed_when: false
+  ignore_errors: true
+  tags: discovery
+
+- name: Check for JBoss EAP/WildFly/EAP packages
+  ansible.builtin.shell: rpm -qa | egrep -i 'jboss|wildfly|eap' || true
+  register: jboss_pkgs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Look for standalone/domain scripts under /opt
+  ansible.builtin.shell: find /opt -maxdepth 3 -type f -name 'standalone.sh' -o -name 'domain.sh' 2>/dev/null || true
+  register: jboss_scripts
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for JBoss-related running Java processes
+  ansible.builtin.shell: ps -ef | egrep -i 'jboss|wildfly' || true
+  register: jboss_processes
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check management and app ports (8080/8443/9990)
+  ansible.builtin.shell: ss -ltnp | egrep -w ':8080|:8443|:9990' || true
+  register: jboss_ports
+  failed_when: false
+  changed_when: false
+  tags: network
+
+- name: Check for JBoss systemd services
+  ansible.builtin.shell: systemctl list-units --type=service --state=running | egrep -i 'jboss|wildfly|eap' || true
+  register: jboss_services
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Combine JBoss EAP checks into `preflight_report`
+  ansible.builtin.set_fact:
+    preflight_report: "{{ preflight_report | default({}) | combine({'product': 'jboss_eap', 'jboss_eap': { 'java_version': java_version.stderr | default(java_version.stdout) | default(''), 'packages': jboss_pkgs.stdout | default(''), 'scripts': jboss_scripts.stdout | default(''), 'processes': jboss_processes.stdout | default(''), 'ports': jboss_ports.stdout | default(''), 'services': jboss_services.stdout | default('') }}) }}"
+  tags: report
+
+- name: Write jboss_eap preflight discovery report to artifacts (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/jboss_eap-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ preflight_report | default({}) | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

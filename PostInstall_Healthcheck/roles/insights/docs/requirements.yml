@@ -1,0 +1,22 @@
+---
+product: insights
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_insights
+best_practices:
+  - "Guard agent installs and configuration changes behind `apply_changes` and scheduled maintenance windows"
+  - "Validate collection settings and privacy controls before enabling broad data collection"
+scenarios:
+  install:
+    preflight:
+      - "Confirm system registration and proxy/firewall configuration"
+    postinstall:
+      - "Install and register the Insights client when `apply_changes` is true and verify connectivity"
+  upgrade:
+    preflight:
+      - "Backup client configuration files"
+    postinstall:
+      - "Validate post-upgrade collection and reporting"
+  backup:
+    preflight:
+      - "Confirm retention and backup locations for assessment data"
+    postinstall: []

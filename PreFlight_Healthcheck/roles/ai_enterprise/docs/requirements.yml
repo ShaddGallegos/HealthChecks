@@ -1,0 +1,39 @@
+---
+product: ai_enterprise
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ai_enterprise/3
+hardware_requirements:
+  notes: "AI workloads may require specialized hardware (GPUs/accelerators) for inference/training; consult product docs for supported hardware."
+os_requirements:
+  notes: "See product documentation for supported OS versions and driver requirements for accelerators."
+setup_requirements:
+  - "Prepare driver and runtime stacks for any supported accelerators (NVIDIA, etc.)"
+  - "Ensure appropriate storage and network throughput for model and data access"
+best_practices:
+  - "Validate acceleration drivers and runtime in a staging environment"
+  - "Use secure storage and access controls for model artifacts and training data"
+scenarios:
+  install:
+    preflight:
+      - "Verify OS and driver compatibility for any accelerators"
+      - "Verify network/storage throughput for dataset access"
+    postinstall:
+      - "Validate inference pipelines and monitoring"
+  upgrade:
+    preflight:
+      - "Backup models and configuration"
+    postinstall:
+      - "Re-validate model serving and performance"
+  migrate:
+    preflight:
+      - "Plan data/model migration and replication strategy"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup strategy for model artifacts and metadata"
+    postinstall: []
+  restore:
+    preflight:
+      - "Test restore procedures for models and data"
+    postinstall:
+      - "Validate model integrity and runtime behavior after restore"

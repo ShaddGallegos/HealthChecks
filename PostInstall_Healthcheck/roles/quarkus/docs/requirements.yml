@@ -1,0 +1,17 @@
+---
+product: quarkus
+source_urls:
+  - https://quarkus.io/guides/
+best_practices:
+  - "Guard JVM/native-image toolchain changes behind `apply_changes`"
+  - "Tune container memory and CPU based on observed application metrics"
+scenarios:
+  install:
+    preflight:
+      - "Verify build and runtime toolchain availability"
+    postinstall:
+      - "Monitor application memory/cpu and adjust resource limits"
+  upgrade:
+    preflight:
+      - "Run integration tests against the new runtime"
+    postinstall: []

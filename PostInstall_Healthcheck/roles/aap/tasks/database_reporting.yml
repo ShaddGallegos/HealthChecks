@@ -1,0 +1,187 @@
+---
+- name: Check required tools for AAP database reporting
+  ansible.builtin.shell: "command -v {{ item }}"
+  args:
+    executable: /bin/bash
+  loop: "{{ aap_db_reporting_required_tools | default([]) }}"
+  changed_when: false
+  tags:
+    - aap_db_reporting
+
+- name: Ensure AAP database reporting output directory exists
+  ansible.builtin.file:
+    path: "{{ aap_db_reporting_output_dir }}"
+    state: directory
+    mode: '0750'
+  tags:
+    - aap_db_reporting
+
+- name: Auto-detect AAP reporting tables
+  ansible.builtin.shell: |
+    set -euo pipefail
+    printf "%s\n" "SELECT
+      COALESCE(
+        NULLIF('{{ aap_db_reporting_host_table_override | default('') }}',''),
+        {% for t in aap_db_reporting_host_table_candidates %}
+        (CASE WHEN to_regclass('public.{{ t }}') IS NOT NULL THEN '{{ t }}' END){% if not loop.last %},{% endif %}
+        {% endfor %}
+      ) AS host_table,
+      COALESCE(
+        NULLIF('{{ aap_db_reporting_jobevent_table_override | default('') }}',''),
+        {% for t in aap_db_reporting_jobevent_table_candidates %}
+        (CASE WHEN to_regclass('public.{{ t }}') IS NOT NULL THEN '{{ t }}' END){% if not loop.last %},{% endif %}
+        {% endfor %}
+      ) AS jobevent_table;" | awx-manage dbshell -q -t -A
+  args:
+    executable: /bin/bash
+  register: aap_db_reporting_detect_tables_cmd
+  changed_when: false
+  when: aap_db_reporting_autodetect_tables | bool
+  tags:
+    - aap_db_reporting
+
+- name: Set AAP reporting table names from detection or overrides
+  ansible.builtin.set_fact:
+    aap_db_reporting_host_table: >-
+      {{
+        (aap_db_reporting_host_table_override | trim)
+        if (aap_db_reporting_host_table_override | trim | length > 0)
+        else ((aap_db_reporting_detect_tables_cmd.stdout_lines | default(['|']) | first).split('|')[0] | trim)
+      }}
+    aap_db_reporting_jobevent_table: >-
+      {{
+        (aap_db_reporting_jobevent_table_override | trim)
+        if (aap_db_reporting_jobevent_table_override | trim | length > 0)
+        else ((aap_db_reporting_detect_tables_cmd.stdout_lines | default(['|']) | first).split('|')[1] | trim)
+      }}
+  tags:
+    - aap_db_reporting
+
+- name: Assert AAP reporting tables were resolved
+  ansible.builtin.assert:
+    that:
+      - aap_db_reporting_host_table | length > 0
+      - aap_db_reporting_jobevent_table | length > 0
+    fail_msg: >-
+      Unable to resolve AAP reporting tables for hosts/job events. Set
+      aap_db_reporting_host_table_override and aap_db_reporting_jobevent_table_override,
+      or update candidate lists for this AAP version.
+  tags:
+    - aap_db_reporting
+
+- name: Create SQL for hosts inventory export
+  ansible.builtin.copy:
+    dest: "{{ aap_db_reporting_output_dir }}/hosts_inventory.sql"
+    mode: '0600'
+    content: |
+      \copy (
+        SELECT
+          h.id,
+          h.name,
+          h.enabled,
+          h.inventory_id,
+          h.created,
+          h.modified,
+          h.description
+        FROM {{ aap_db_reporting_host_table }} h
+        WHERE COALESCE(h.enabled, true) = true
+        ORDER BY h.id
+      ) TO '{{ aap_db_reporting_output_dir }}/hosts_inventory.csv' CSV HEADER;
+  tags:
+    - aap_db_reporting
+
+- name: Create SQL for job events export
+  ansible.builtin.copy:
+    dest: "{{ aap_db_reporting_output_dir }}/job_events.sql"
+    mode: '0600'
+    content: |
+      \copy (
+        SELECT
+          je.id,
+          je.created,
+          je.job_id,
+          je.host_name,
+          je.event,
+          je.failed,
+          je.changed,
+          je.playbook,
+          je.play,
+          je.task,
+          je.role
+        FROM {{ aap_db_reporting_jobevent_table }} je
+        WHERE je.host_name IS NOT NULL
+        ORDER BY je.created DESC
+        LIMIT {{ aap_db_reporting_job_events_limit | int }}
+      ) TO '{{ aap_db_reporting_output_dir }}/job_events.csv' CSV HEADER;
+  tags:
+    - aap_db_reporting
+
+- name: Create SQL for host metric export
+  ansible.builtin.copy:
+    dest: "{{ aap_db_reporting_output_dir }}/hostmetric.sql"
+    mode: '0600'
+    content: |
+      \copy (
+        SELECT
+          h.id AS host_id,
+          h.name AS host_name,
+          MIN(je.created) AS first_seen,
+          MAX(je.created) AS last_seen,
+          COUNT(je.id) AS total_events
+        FROM {{ aap_db_reporting_host_table }} h
+        LEFT JOIN {{ aap_db_reporting_jobevent_table }} je ON je.host_name = h.name
+        GROUP BY h.id, h.name
+        ORDER BY h.name
+      ) TO '{{ aap_db_reporting_output_dir }}/hostmetric.csv' CSV HEADER;
+  tags:
+    - aap_db_reporting
+
+- name: Export hosts inventory CSV via awx-manage dbshell
+  ansible.builtin.shell: "awx-manage dbshell < {{ aap_db_reporting_output_dir }}/hosts_inventory.sql"
+  args:
+    executable: /bin/bash
+  changed_when: true
+  tags:
+    - aap_db_reporting
+
+- name: Export job events CSV via awx-manage dbshell
+  ansible.builtin.shell: "awx-manage dbshell < {{ aap_db_reporting_output_dir }}/job_events.sql"
+  args:
+    executable: /bin/bash
+  changed_when: true
+  tags:
+    - aap_db_reporting
+
+- name: Export host metric CSV via awx-manage dbshell
+  ansible.builtin.shell: "awx-manage dbshell < {{ aap_db_reporting_output_dir }}/hostmetric.sql"
+  args:
+    executable: /bin/bash
+  changed_when: true
+  tags:
+    - aap_db_reporting
+
+- name: Optionally collect AAP analytics data using awx-manage
+  ansible.builtin.shell: >-
+    {{ aap_db_reporting_analytics_command }} > {{ aap_db_reporting_analytics_output_file }} 2>&1
+  args:
+    executable: /bin/bash
+  register: aap_db_reporting_analytics_cmd
+  failed_when: >-
+    (aap_db_reporting_analytics_fail_on_error | bool) and
+    (aap_db_reporting_analytics_cmd.rc != 0)
+  changed_when: true
+  when: aap_db_reporting_analytics_enabled | bool
+  tags:
+    - aap_db_reporting
+
+- name: Show AAP database reporting output paths
+  ansible.builtin.debug:
+    msg:
+      - "Detected host table  : {{ aap_db_reporting_host_table }}"
+      - "Detected event table : {{ aap_db_reporting_jobevent_table }}"
+      - "hosts_inventory.csv : {{ aap_db_reporting_output_dir }}/hosts_inventory.csv"
+      - "job_events.csv      : {{ aap_db_reporting_output_dir }}/job_events.csv"
+      - "hostmetric.csv      : {{ aap_db_reporting_output_dir }}/hostmetric.csv"
+      - "analytics capture   : {{ aap_db_reporting_analytics_output_file if (aap_db_reporting_analytics_enabled | bool) else 'disabled' }}"
+  tags:
+    - aap_db_reporting

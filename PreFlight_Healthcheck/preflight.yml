@@ -1,9 +1,28 @@
 ---
 - hosts: all
-  gather_facts: yes
-  become: yes
+  gather_facts: true
+  become: true
   vars:
     product_name: "rhel"
+    artifacts_dir: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts/preflight')) }}"
+  pre_tasks:
+    - name: Set healthcheck safety mode
+      ansible.builtin.set_fact:
+        healthcheck_check_mode_only_effective: "{{ healthcheck_check_mode_only | default(true) | bool }}"
+
+    - name: Set effective execution flags for selected preflight product
+      ansible.builtin.set_fact:
+        install_deps: "{{ not healthcheck_check_mode_only_effective }}"
+        apply_changes: "{{ not healthcheck_check_mode_only_effective }}"
+        "{{ product_name }}_install_deps": "{{ not healthcheck_check_mode_only_effective }}"
+        "{{ product_name }}_apply_changes": "{{ not healthcheck_check_mode_only_effective }}"
+
+    - name: Ensure preflight artifacts dir exists on controller
+      ansible.builtin.file:
+        path: "{{ artifacts_dir }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
   roles:
     - role: roles/preflight_prompt
       vars:

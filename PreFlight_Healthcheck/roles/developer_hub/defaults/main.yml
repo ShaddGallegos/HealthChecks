@@ -1,0 +1,21 @@
+---
+# ansible-lint: skip_list=var-naming
+developer_hub_preflight_admin_user: admin
+developer_hub_preflight_container_rootless: false
+developer_hub_preflight_sudo_group: wheel
+developer_hub_product_repos: []
+developer_hub_product_prereq_packages: []
+developer_hub_product_required_secrets: []
+developer_hub_product_required_mounts: []
+developer_hub_installer_config_path: /etc/developer_hub-installer.conf
+developer_hub_product_ports: []
+developer_hub_install_deps: false
+developer_hub_apply_changes: false
+developer_hub_validate_platform_certs: false
+developer_hub_show_help: false
+developer_hub_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+developer_hub_container_runtime: podman
+developer_hub_container_registry: registry.redhat.io

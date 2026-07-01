@@ -1,0 +1,40 @@
+---
+- name: Set runtime paths
+  ansible.builtin.set_fact:
+    network_inventory_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+    network_inventory_zmap_base: "{{ network_inventory_output_dir }}/zmap_live_{{ network_inventory_timestamp }}"
+    network_inventory_hping_out: "{{ network_inventory_output_dir }}/hping_firewall_{{ network_inventory_timestamp }}.txt"
+    network_inventory_rust_out: "{{ network_inventory_output_dir }}/rustscan_{{ network_inventory_timestamp }}.txt"
+    network_inventory_nmap_out: "{{ network_inventory_output_dir }}/nmap_deep_{{ network_inventory_timestamp }}.xml"
+    network_inventory_local_audit_dir: "{{ network_inventory_output_dir }}/local_audits_{{ network_inventory_timestamp }}"
+    network_inventory_csv_out: "{{ network_inventory_output_dir }}/{{ network_inventory_report_name_prefix }}_{{ network_inventory_timestamp }}.csv"
+    network_inventory_summary_csv_out: "{{ network_inventory_output_dir }}/{{ network_inventory_summary_name_prefix }}_{{ network_inventory_timestamp }}.csv"
+    network_inventory_xlsx_out: "{{ network_inventory_output_dir }}/{{ network_inventory_report_name_prefix }}_{{ network_inventory_timestamp }}.xlsx"
+    network_inventory_live_hosts: "{{ network_inventory_output_dir }}/discovered_hosts_{{ network_inventory_timestamp }}.txt"
+    network_inventory_inventory_out: "{{ network_inventory_output_dir }}/{{ network_inventory_discovered_inventory_name_prefix }}_{{ network_inventory_timestamp }}.ini"
+
+- name: Ensure output directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ network_inventory_output_dir }}"
+    - "{{ network_inventory_local_audit_dir }}"
+
+- name: Build tool list based on authentication mode
+  ansible.builtin.set_fact:
+    network_inventory_tools_to_check: "{{ network_inventory_required_tools + (['sshpass'] if (network_inventory_use_sshpass | bool) else []) }}"
+
+- name: Check required tools
+  ansible.builtin.shell: "command -v {{ item }}"
+  args:
+    executable: /bin/bash
+  loop: "{{ network_inventory_tools_to_check }}"
+  changed_when: false
+
+- name: Create ZMap whitelist file from network segments
+  ansible.builtin.copy:
+    dest: "{{ network_inventory_output_dir }}/zmap_whitelist.tmp"
+    content: "{{ (network_inventory_target_segments | list) | join('\n') }}\n"
+    mode: "0644"

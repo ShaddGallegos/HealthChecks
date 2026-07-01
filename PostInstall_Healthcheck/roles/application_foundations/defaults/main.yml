@@ -1,0 +1,17 @@
+---
+application_foundations_postinstall_admin_user: admin
+application_foundations_postinstall_sudo_group: wheel
+application_foundations_product_repos: []
+application_foundations_product_prereq_packages: []
+application_foundations_product_required_secrets: []
+application_foundations_product_required_mounts: []
+application_foundations_installer_config_path: /etc/application_foundations-installer.conf
+application_foundations_product_ports: []
+application_foundations_install_deps: false
+application_foundations_apply_changes: false
+application_foundations_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+application_foundations_container_runtime: podman
+application_foundations_container_registry: registry.redhat.io

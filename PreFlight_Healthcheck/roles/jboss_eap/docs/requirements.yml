@@ -1,0 +1,23 @@
+---
+product: jboss_eap
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_jboss_enterprise_application_platform/8.1
+hardware_requirements:
+  notes: "JBoss EAP is a JVM-based app server; size JVM heap and CPU per application requirements."
+setup_requirements:
+  - "Ensure supported Java runtime and correct JVM vendor/version"
+  - "Verify database connectivity for datasources and queuing systems"
+best_practices:
+  - "Tune JVM heap, GC, and file descriptors according to throughput"
+  - "Use connection-pool sizing and application profiling to set defaults"
+scenarios:
+  install:
+    preflight:
+      - "Verify supported Java version and `java -version`"
+      - "Confirm required ports, SELinux mode, and ulimit/file descriptors"
+    postinstall:
+      - "Validate application deployment, datasource connectivity, and management console access"
+  upgrade:
+    preflight:
+      - "Backup configurations and test upgrade in staging"
+    postinstall: []

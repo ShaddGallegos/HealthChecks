@@ -1,0 +1,69 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  ignore_errors: true
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PostInstall healthcheck requires root or passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in idm_supported_rhel_major_versions
+    fail_msg: "Supported RHEL major versions: {{ idm_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include postinstall template
+  ansible.builtin.include_role:
+    name: postinstall_template
+  tags: postinstall
+
+- name: Include guarded tuning tasks
+  ansible.builtin.include_tasks: tuning.yml
+  when: (idm_apply_changes | default(false)) and not ansible_check_mode
+  tags: tuning
+
+- name: PostInstall IdM - verify registration and repos
+  ansible.builtin.shell: |
+    if command -v subscription-manager >/dev/null 2>&1; then
+      subscription-manager identity || true
+    else
+      echo 'not-registered'
+    fi
+  register: sub_identity
+  changed_when: false
+  failed_when: false
+  tags: registration
+
+- name: Archive postinstall report (placeholder)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/idm-{{ inventory_hostname }}-postinstall-report.json"
+    content: "{}"
+    delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

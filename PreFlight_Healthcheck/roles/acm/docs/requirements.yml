@@ -1,0 +1,37 @@
+---
+product: acm
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.17
+hardware_requirements:
+  notes: "ACM is an OpenShift operator; follow OpenShift sizing and operator guidance for control plane and managed clusters."
+os_requirements:
+  notes: "ACM depends on supported OpenShift versions; verify compatibility in product docs."
+setup_requirements:
+  - "Prepare OpenShift clusters and operator installation (Namespace, RBAC, OLM/operatorhub access)"
+  - "Network reachability between ACM hub and managed clusters, and correct credentials"
+best_practices:
+  - "Install ACM via the Operator Lifecycle Manager and follow Red Hat reference architectures"
+scenarios:
+  install:
+    preflight:
+      - "Verify OpenShift version compatibility"
+      - "Verify cluster resources and network connectivity"
+    postinstall:
+      - "Validate managed cluster connections and basic resource sync"
+  upgrade:
+    preflight:
+      - "Review operator/ACM upgrade notes and backed-up state"
+    postinstall:
+      - "Validate post-upgrade connectivity and policies"
+  migrate:
+    preflight:
+      - "Plan migration paths for managed clusters and policies"
+    postinstall: []
+  backup:
+    preflight:
+      - "Ensure backup of ACM resources where applicable"
+    postinstall: []
+  restore:
+    preflight:
+      - "Validate restore procedures in staging before production restores"
+    postinstall: []

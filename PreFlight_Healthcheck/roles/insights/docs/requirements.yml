@@ -1,0 +1,22 @@
+---
+product: insights
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_insights
+hardware_requirements:
+  notes: "Insights consists of services and agents; most checks are connectivity and registration focused."
+setup_requirements:
+  - "Register RHEL systems and ensure the Insights client or required connectors are installed"
+  - "Ensure network connectivity to Red Hat endpoints or proxy configuration for disconnected environments"
+best_practices:
+  - "Review data collection/privacy controls and use local Lightspeed proxy in disconnected environments"
+scenarios:
+  install:
+    preflight:
+      - "Confirm systems are registered and the Insights client can reach required endpoints"
+      - "Validate proxy or firewall rules for connectivity"
+    postinstall:
+      - "Verify scheduled assessments and reports are generated"
+  upgrade:
+    preflight:
+      - "Backup configuration and validate agent compatibility"
+    postinstall: []

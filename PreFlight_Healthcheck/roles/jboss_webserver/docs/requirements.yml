@@ -1,0 +1,21 @@
+---
+product: jboss_webserver
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_jboss_web_server/6.2
+hardware_requirements:
+  notes: "Web server sizing depends on request throughput; plan CPU and memory accordingly."
+setup_requirements:
+  - "Ensure required connectors (mod_jk/mod_proxy) and TLS certificates are available"
+best_practices:
+  - "Tune worker threads and keepalive settings based on traffic patterns"
+scenarios:
+  install:
+    preflight:
+      - "Verify TLS certificate locations and web connector configuration"
+      - "Confirm load balancer/connector configurations"
+    postinstall:
+      - "Validate virtual hosts and TLS chain"
+  upgrade:
+    preflight:
+      - "Backup configuration and test upgrades in staging"
+    postinstall: []

@@ -1,0 +1,94 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in aap_eda_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ aap_eda_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: aap_eda
+      product_required_mounts: ['/','/var','/opt/aap']
+      product_ports: []
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Check for EDA-related packages (non-destructive)
+  ansible.builtin.shell: rpm -qa | egrep -i 'eda|aap-eda|ansible-eda|eda-runner' || true
+  register: eda_pkgs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for EDA services/processes
+  ansible.builtin.shell: ps -ef | egrep -i 'eda|eda-runner|awx|aap' || true
+  register: eda_procs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check common AAP commands available (non-destructive)
+  ansible.builtin.shell: command -v ansible-navigator || command -v ansible-runner || command -v awx-manage || true
+  register: aap_tools
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Set aap_eda discovery report
+  ansible.builtin.set_fact:
+    aap_eda_discovery_report:
+      inventory_hostname: "{{ inventory_hostname }}"
+      os: "{{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_major_version'] }}"
+      eda_packages: "{{ eda_pkgs.stdout | default('') }}"
+      eda_processes: "{{ eda_procs.stdout | default('') }}"
+      aap_tools: "{{ aap_tools.stdout | default('') }}"
+      preflight_template: "{{ preflight_report | default({}) }}"
+  tags: report
+
+- name: Write aap_eda preflight discovery report to artifacts (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/aap_eda-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'product':'aap_eda','report': aap_eda_discovery_report | default({})} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

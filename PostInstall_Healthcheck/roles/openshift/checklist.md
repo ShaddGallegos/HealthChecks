@@ -1,0 +1,9 @@
+- Prerequisites: python3, container tools (podman), required OS packages
+- Filesystems: ensure /var, /opt and registry storage mountpoints have space
+- Packages: required OpenShift packages or container runtimes installed
+- Pip: `pip`, `setuptools`, `wheel` upgraded
+- Admin user: create `admin` and configure passwordless sudo
+- Repositories: enable OpenShift and container-related repositories
+- Installer config: verify installer configuration files exist
+- Secrets: `~/.ansible/conf/env.yml` contains unique product secrets and is ansible-vault encrypted
+- Rootless containers: ensure subuid/subgid entries and rootless podman configured

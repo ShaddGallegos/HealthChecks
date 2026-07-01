@@ -1,0 +1,17 @@
+---
+apache_camel_postinstall_admin_user: admin
+apache_camel_postinstall_sudo_group: wheel
+apache_camel_product_repos: []
+apache_camel_product_prereq_packages: []
+apache_camel_product_required_secrets: []
+apache_camel_product_required_mounts: []
+apache_camel_installer_config_path: /etc/apache_camel-installer.conf
+apache_camel_product_ports: []
+apache_camel_install_deps: false
+apache_camel_apply_changes: false
+apache_camel_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+apache_camel_container_runtime: podman
+apache_camel_container_registry: registry.redhat.io

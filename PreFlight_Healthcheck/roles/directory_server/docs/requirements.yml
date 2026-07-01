@@ -1,0 +1,23 @@
+---
+product: directory_server
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_directory_server/13
+hardware_requirements:
+  notes: "Sizing depends on directory size, number of entries, and replication topology."
+setup_requirements:
+  - "Ensure DNS resolution and stable hostnames for replication"
+  - "Open LDAP ports (389/636) and configure TLS for secure replication"
+best_practices:
+  - "Plan replication topology and backup schedules before production rollout"
+  - "Monitor replication lag and LDAP operation latencies"
+scenarios:
+  install:
+    preflight:
+      - "Verify port accessibility (389/636) and certificate availability"
+      - "Confirm system time synchronization (NTP/chrony)"
+    postinstall:
+      - "Validate replication and indexing"
+  backup:
+    preflight:
+      - "Confirm secure backup location and database dumps"
+    postinstall: []

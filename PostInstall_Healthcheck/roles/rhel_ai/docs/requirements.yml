@@ -1,0 +1,29 @@
+---
+product: rhel_ai
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ai_enterprise/3
+  - https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9
+best_practices:
+  - "Guard accelerator driver installation, kernel module changes, and firmware updates behind `apply_changes` and scheduled maintenance windows"
+  - "Validate drivers and runtimes on a staging host before production rollout"
+  - "Automate model validation and performance benchmarking after changes"
+scenarios:
+  install:
+    preflight:
+      - "Verify host readiness for accelerator installation (kernel headers, build tools)"
+    postinstall:
+      - "Install drivers and runtime stacks when `apply_changes` is true and verify with smoke tests"
+  upgrade:
+    preflight:
+      - "Backup model artifacts and runtime configs"
+    postinstall:
+      - "Run inference benchmarks and validate functional tests"
+  backup:
+    preflight:
+      - "Confirm backup and restore for model artifacts and metadata"
+    postinstall: []
+  restore:
+    preflight:
+      - "Ensure target host has compatible drivers and runtimes"
+    postinstall:
+      - "Validate restored models and runtimes"

@@ -1,0 +1,40 @@
+---
+product: openshift_ai
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/latest
+  - https://docs.redhat.com/en/documentation/red_hat_ai/latest
+hardware_requirements:
+  notes: "OpenShift AI deployments often require accelerators (GPUs), additional memory, and fast storage for model serving. Consult validated hardware matrices in product docs."
+os_requirements:
+  notes: "Requires a supported OpenShift cluster and RHEL-compatible nodes for operator components. Verify kernel, container runtime, and driver compatibility."
+setup_requirements:
+  - "Prepare OpenShift cluster (control plane, worker nodes) and ensure node labels/taints for AI workloads"
+  - "Provision accelerator drivers on worker nodes as required by workloads"
+  - "Provide S3-compatible object storage for model registry and artifacts"
+  - "Ensure access to registry.redhat.io for operator and image pulls"
+best_practices:
+  - "Validate accelerator driver and container runtime compatibility before installing OpenShift AI"
+  - "Use operator-based installation and test in staging before production deployment"
+scenarios:
+  install:
+    preflight:
+      - "Verify OpenShift cluster API accessibility (port 6443) and cluster health"
+      - "Verify accelerators presence and driver availability on intended nodes"
+      - "Verify object storage accessibility and credentials for model registry"
+      - "Verify network, DNS, and NTP across cluster nodes"
+    postinstall:
+      - "Ensure operator pods are running and model registry reachable"
+  upgrade:
+    preflight:
+      - "Backup model registries, CRs, and operator configurations"
+    postinstall:
+      - "Run functional model-serving tests and validate telemetry/monitoring"
+  backup:
+    preflight:
+      - "Confirm model artifact and registry backups"
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare cluster nodes with matching drivers and runtimes"
+    postinstall:
+      - "Revalidate model serving and compute performance"

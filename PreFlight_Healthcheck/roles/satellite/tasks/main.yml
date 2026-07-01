@@ -1,28 +1,96 @@
 ---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
 - name: Include env vars file (may be ansible-vault encrypted)
   ansible.builtin.include_vars:
-    file: "{{ lookup('env','HOME') + '/.ansible/conf/env.yml' }}"
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
     name: env_vars
   tags: always
 
 - name: Set product_env from env_vars
   ansible.builtin.set_fact:
-    product_env: "{{ env_vars.get(product_name, {}) }}"
+    product_env: "{{ env_vars.get('satellite', {}) }}"
   tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in satellite_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ satellite_supported_rhel_major_versions | join(', ') }}"
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+    product_name: satellite
+    product_required_mounts: "{{ satellite_product_required_mounts }}"
+    product_ports: "{{ satellite_product_ports | default([]) }}"
+    product_repos: "{{ satellite_product_repos }}"
+    satellite_product_prereq_packages: "{{ satellite_product_prereq_packages }}"
+    satellite_product_required_secrets: "{{ satellite_product_required_secrets }}"
+    satellite_installer_config_path: "{{ satellite_installer_config_path }}"
+    satellite_preflight_admin_user: "{{ satellite_preflight_admin_user }}"
+    satellite_preflight_sudo_group: "{{ satellite_preflight_sudo_group }}"
+    satellite_preflight_container_rootless: "{{ satellite_preflight_container_rootless }}"
+    satellite_install_deps: "{{ satellite_install_deps }}"
+    satellite_apply_changes: "{{ satellite_apply_changes }}"
+    satellite_supported_rhel_major_versions: "{{ satellite_supported_rhel_major_versions }}"
+    satellite_container_runtime: "{{ satellite_container_runtime }}"
+    satellite_container_registry: "{{ satellite_container_registry }}"
+    satellite_validate_platform_certs: "{{ satellite_validate_platform_certs }}"
+    satellite_show_help: "{{ satellite_show_help }}"
 
 - name: Fail if required secrets missing
   ansible.builtin.fail:
-    msg: "Missing required secret '{{ item }}' for '{{ product_name }}' in ~/.ansible/conf/env.yml"
+    msg: "Missing required secret '{{ item }}' for 'satellite' in ~/.ansible/conf/env.yml"
   when: product_env.get(item, '') == ''
-  loop: "{{ product_required_secrets | default([]) }}"
+  loop: "{{ satellite_product_required_secrets | default([]) }}"
   tags: secrets
 
-- name: Ensure prerequisite OS packages are installed
+- name: Check for missing prerequisite packages (non-destructive)
+  ansible.builtin.shell: |
+    if ! rpm -q {{ item }} >/dev/null 2>&1; then
+      echo {{ item }}
+    fi
+  register: satellite_pkg_check_results
+  failed_when: false
+  changed_when: false
+  loop: "{{ satellite_product_prereq_packages | default([]) }}"
+  tags: prereqs
+
+- name: Set missing product prereq packages fact
+  ansible.builtin.set_fact:
+    satellite_missing_product_prereq_packages: "{{ satellite_pkg_check_results.results | map(attribute='stdout') | reject('equalto', '') | list }}"
+  tags: prereqs
+
+- name: Install missing prerequisite packages (opt-in)
   ansible.builtin.package:
-    name: "{{ item }}"
+    name: "{{ satellite_missing_product_prereq_packages }}"
     state: present
-  loop: "{{ product_prereq_packages }}"
-  ignore_errors: yes
+  when: (satellite_install_deps | default(false)) and (satellite_missing_product_prereq_packages | default([]) | length > 0)
   register: pkg_install_results
   tags: prereqs
 
@@ -33,31 +101,34 @@
   when: item.failed
   tags: prereqs
 
-- name: Ensure pip, setuptools and wheel are upgraded
+- name: Ensure pip, setuptools and wheel are present
   ansible.builtin.pip:
     name:
       - pip
       - setuptools
       - wheel
-    state: latest
+    state: present
     executable: pip3
+  when: satellite_install_deps | default(false)
   tags: pip
 
 - name: Ensure admin user exists
   ansible.builtin.user:
-    name: "{{ preflight_admin_user }}"
-    groups: "{{ preflight_sudo_group }}"
-    append: yes
-    create_home: yes
+    name: "{{ satellite_preflight_admin_user }}"
+    groups: "{{ satellite_preflight_sudo_group }}"
+    append: true
+    create_home: true
+  when: satellite_apply_changes | default(false)
   tags: users
 
 - name: Allow admin passwordless sudo
   ansible.builtin.lineinfile:
     path: /etc/sudoers.d/preflight_admin
-    create: yes
-    line: "{{ preflight_admin_user }} ALL=(ALL) NOPASSWD:ALL"
+    create: true
+    line: "{{ satellite_preflight_admin_user }} ALL=(ALL) NOPASSWD:ALL"
     state: present
     validate: '/usr/sbin/visudo -cf %s'
+  when: satellite_apply_changes | default(false)
   tags: users
 
 - name: Ensure product yum/dnf repositories are present
@@ -65,14 +136,154 @@
     name: "{{ item.name }}"
     description: "{{ item.description | default(item.name) }}"
     baseurl: "{{ item.baseurl }}"
-    enabled: yes
-    gpgcheck: no
-  loop: "{{ product_repos | default([]) }}"
-  when: product_repos is defined and product_repos | length > 0
+    enabled: true
+    gpgcheck: true
+  loop: "{{ satellite_product_repos | default([]) }}"
+  when: (satellite_product_repos is defined and satellite_product_repos | length > 0) and (satellite_apply_changes | default(false))
   tags: repos
 
 - name: Ensure installer config exists (touch as placeholder)
   ansible.builtin.file:
-    path: "{{ installer_config_path }}"
+    path: "{{ satellite_installer_config_path }}"
     state: touch
+  when: satellite_apply_changes | default(false)
   tags: installer
+
+## --------------------------------------------------------
+## Discovery: non-destructive Satellite checks extracted from orchestrator
+## --------------------------------------------------------
+
+- name: Audit - Extract exact localized Satellite application version
+  ansible.builtin.command: rpm -q --qf "%{VERSION}" satellite
+  register: satellite_version_raw
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Audit - Fallback version parse if standalone meta-package varies
+  ansible.builtin.command: rpm -q --qf "%{VERSION}" foreman
+  register: foreman_version_raw
+  when: satellite_version_raw.rc != 0
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Set finalized application version facts
+  ansible.builtin.set_fact:
+    resolved_satellite_version: "{{ satellite_version_raw.stdout if satellite_version_raw.rc == 0 else foreman_version_raw.stdout | default('Unknown/Capsule Node') }}"
+  tags: discovery
+
+- name: Security Check - Evaluate insights-client registration state
+  ansible.builtin.command: insights-client --status
+  register: insights_status_cmd
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Security Check - Evaluate Remote Host Configuration (rhc) engine state
+  ansible.builtin.command: rhc status
+  register: rhc_status_cmd
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Security Check - Fetch pending Security Advisories & CVE summary statistics
+  ansible.builtin.command: dnf updateinfo summary --quiet
+  register: dnf_security_summary
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Security Check - Extract specific open CVE tags assigned to node (sample)
+  ansible.builtin.command: dnf updateinfo list cves --quiet
+  register: dnf_cve_list
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Audit - Look for essential localized sub-system identities
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item }}"
+  loop: [foreman, pulp, postgres]
+  failed_when: false
+  tags: discovery
+
+- name: Audit - Look for filesystem configurations forced into Read-Only status
+  ansible.builtin.shell: |
+    set -o pipefail
+    awk '$4 ~ /^ro/ {print $2}' /proc/mounts
+  register: ro_mounts
+  changed_when: false
+  failed_when: false
+  tags: discovery
+
+- name: Assert - Validate critical partition volume space overhead
+  ansible.builtin.assert:
+    that:
+      - (item.size_available / item.size_total) > 0.15
+    fail_msg: "Storage footprint boundary reached on {{ item.mount }}!"
+  loop: "{{ ansible_facts.mounts }}"
+  when: item.mount in ['/var', '/var/lib/pulp', '/var/lib/pgsql', '/']
+  tags: discovery
+
+- name: Audit - Ensure default Satellite sockets are up (non-blocking)
+  ansible.builtin.wait_for:
+    port: "{{ item }}"
+    state: started
+    timeout: 4
+  loop: "{{ satellite_product_ports | default([]) }}"
+  ignore_errors: true
+  tags: discovery
+
+- name: Audit - Check Chrony engine state for wall-clock tracking
+  ansible.builtin.command: chronyc tracking
+  register: chrony_check
+  changed_when: false
+  failed_when: false
+  tags: discovery
+
+- name: Feature Discovery - Check for External Capsule Proxies
+  ansible.builtin.command: hammer --csv proxy list
+  register: proxy_list_cmd
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Feature Discovery - Check for Active OpenSCAP Profiles
+  ansible.builtin.command: hammer --csv oscap-policy list
+  register: oscap_list_cmd
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Feature Discovery - Check for Active Virt-who Configurations
+  ansible.builtin.command: hammer --csv virt-who-config list
+  register: virtwho_list_cmd
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Set satellite_discovery_report fact
+  ansible.builtin.set_fact:
+    satellite_discovery_report:
+      inventory_hostname: "{{ inventory_hostname }}"
+      os: "{{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_major_version'] }}"
+      resolved_satellite_version: "{{ resolved_satellite_version | default('Unknown') }}"
+      insights_status: "{{ insights_status_cmd.stdout | default('not-checked') }}"
+      rhc_status: "{{ rhc_status_cmd.stdout | default('not-checked') }}"
+      dnf_security_summary: "{{ dnf_security_summary.stdout_lines | default([]) | list }}"
+      sample_cves: "{{ dnf_cve_list.stdout_lines[:20] | default([]) }}"
+      proxy_count: "{{ proxy_list_cmd.stdout_lines | default([]) | length }}"
+      oscap_profiles: "{{ oscap_list_cmd.stdout_lines | default([]) | list }}"
+      virtwho_configs: "{{ virtwho_list_cmd.stdout_lines | default([]) | list }}"
+      ro_mounts: "{{ ro_mounts.stdout | default('') }}"
+      chrony: "{{ chrony_check.stdout | default('not-checked') }}"
+  tags: discovery
+
+- name: Archive discovery report (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/satellite-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ satellite_discovery_report | default({}) | to_nice_json }}"
+  delegate_to: localhost
+  tags: report

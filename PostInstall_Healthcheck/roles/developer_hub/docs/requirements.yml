@@ -1,0 +1,17 @@
+---
+product: developer_hub
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.10
+best_practices:
+  - "Guard operator/cluster changes behind `apply_changes` and test in staging"
+  - "Document integration credentials and rotate regularly"
+scenarios:
+  install:
+    preflight:
+      - "Confirm operator installation mode (operator/Helm) and permissions"
+    postinstall:
+      - "Validate project templates and pipelines are functional"
+  upgrade:
+    preflight:
+      - "Backup configuration and test upgrade in a staging cluster"
+    postinstall: []

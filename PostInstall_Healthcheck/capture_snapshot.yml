@@ -1,0 +1,20 @@
+---
+- hosts: all
+  gather_facts: true
+  become: true
+  vars:
+    # directory on controller where snapshots will be stored
+    artifacts_dir: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts/snapshots')) }}"
+    snapshot_role: postinstall_template
+  pre_tasks:
+    - name: Ensure artifacts dir exists on controller
+      file:
+        path: "{{ artifacts_dir }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+
+  roles:
+    - role: "roles/{{ snapshot_role }}"
+      vars:
+        artifacts_dir: "{{ artifacts_dir }}"

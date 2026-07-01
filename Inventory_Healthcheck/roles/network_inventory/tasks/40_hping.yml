@@ -1,0 +1,20 @@
+---
+- name: Gather firewall and uptime telemetry with Hping3
+  ansible.builtin.shell: |
+    set -euo pipefail
+    echo "Host,Estimated_Uptime,Firewall_Response" > "{{ network_inventory_hping_out }}"
+    while read -r ip; do
+      uptime_est=$(hping3 -S -p 80 -c 2 --tcp-timestamp "$ip" 2>/dev/null | grep -i "uptime" | awk -F'Uptime' '{print $2}' | xargs || true)
+      [ -z "$uptime_est" ] && uptime_est="Unknown/Protected"
+
+      firewall_test=$(hping3 -A -p 80 -c 1 "$ip" 2>/dev/null | grep -o "flags=[A-Z]*" || true)
+      if [ -z "$firewall_test" ]; then
+        firewall_state="Dropped (Filtered)"
+      else
+        firewall_state="Responsive ($firewall_test)"
+      fi
+      echo "$ip,$uptime_est,$firewall_state" >> "{{ network_inventory_hping_out }}"
+    done < "{{ network_inventory_live_hosts }}"
+  args:
+    executable: /bin/bash
+  changed_when: true

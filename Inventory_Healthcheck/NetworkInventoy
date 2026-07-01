@@ -1,0 +1,451 @@
+#!/bin/bash
+
+# Ensure the script is run as root (Required for ZMap/Hping3)
+if [ "$EUID" -ne 0 ]; then
+  echo "[-] This script requires raw socket access. Please run with sudo or as root."
+  exit 1
+fi
+
+TARGET=${1:-"192.168.1.0/24"}
+OUTPUT_DIR="./scan_results"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+mkdir -p "$OUTPUT_DIR"
+
+# Optional: Credentials for deep local RHEL/JBoss auditing via SSH
+# If left blank or connection fails, the script falls back gracefully to network-only data.
+SSH_USER="root"
+SSH_KEY="" # Path to private key if using key-based auth (e.g., ~/.ssh/id_rsa)
+
+# File Paths
+ZMAP_OUT="$OUTPUT_DIR/zmap_live_$TIMESTAMP.txt"
+HPING_OUT="$OUTPUT_DIR/hping_firewall_$TIMESTAMP.txt"
+RUST_OUT="$OUTPUT_DIR/rustscan_$TIMESTAMP.txt"
+NMAP_OUT="$OUTPUT_DIR/nmap_deep_$TIMESTAMP.xml"
+LOCAL_AUDIT_DIR="$OUTPUT_DIR/local_audits_$TIMESTAMP"
+CSV_OUT="$OUTPUT_DIR/comprehensive_report_$TIMESTAMP.csv"
+SUMMARY_CSV_OUT="$OUTPUT_DIR/product_confidence_summary_$TIMESTAMP.csv"
+LIVE_HOSTS="$OUTPUT_DIR/discovered_hosts_$TIMESTAMP.txt"
+
+mkdir -p "$LOCAL_AUDIT_DIR"
+
+echo "[+] Target Scope: $TARGET"
+echo "[+] Output Directory: $OUTPUT_DIR"
+
+# Dependencies Check
+for cmd in zmap hping3 rustscan nmap python3 ssh; do
+    if ! command -v $cmd &> /dev/null; then
+        echo "[-] Error: Required tool '$cmd' is not installed."
+        exit 1
+    fi
+done
+
+###############################################################################
+# STEP 1 — Wide Host Discovery (ZMap) & Spoof/Firewall Check (Hping3)
+###############################################################################
+echo -e "\n[*] STEP 1: Initiating wide host discovery & firewall probing..."
+
+ZMAP_WHITELIST="$OUTPUT_DIR/zmap_whitelist.tmp"
+echo "$TARGET" > "$ZMAP_WHITELIST"
+
+zmap -p 80 -w "$ZMAP_WHITELIST" -o "$ZMAP_OUT.80" --quiet
+zmap -p 22 -w "$ZMAP_WHITELIST" -o "$ZMAP_OUT.22" --quiet
+cat "$ZMAP_OUT.80" "$ZMAP_OUT.22" | sort -u > "$LIVE_HOSTS"
+rm -f "$ZMAP_WHITELIST" "$ZMAP_OUT.80" "$ZMAP_OUT.22"
+
+if [ ! -s "$LIVE_HOSTS" ]; then
+    echo "[!] ZMap didn't catch external facing ports. Trying Hping3 ICMP/SYN sweep..."
+    nmap -sL -n "$TARGET" | awk '/Nmap scan report for/{print $5}' > "$OUTPUT_DIR/all_ips.tmp"
+    
+    while read -r ip; do
+        hping3 -S -p 80 -c 1 "$ip" 2>/dev/null | grep -q "flags=" && echo "$ip" >> "$LIVE_HOSTS"
+        hping3 -1 -c 1 "$ip" 2>/dev/null | grep -q "ttl=" && echo "$ip" >> "$LIVE_HOSTS"
+    done < "$OUTPUT_DIR/all_ips.tmp"
+    sort -u "$LIVE_HOSTS" -o "$LIVE_HOSTS"
+    rm -f "$OUTPUT_DIR/all_ips.tmp"
+fi
+
+echo "[+] Discovered $(wc -l < "$LIVE_HOSTS") responsive hosts."
+if [ ! -s "$LIVE_HOSTS" ]; then
+    echo "[-] No live hosts found. Exiting."
+    exit 1
+fi
+
+###############################################################################
+# STEP 2 — Fast Port Mapping (RustScan)
+###############################################################################
+echo -e "\n[*] STEP 2: Running RustScan against live hosts map..."
+HOST_LIST=$(tr '\n' ',' < "$LIVE_HOSTS" | sed 's/,$//')
+rustscan -a "$HOST_LIST" --ulimit 5000 -g > "$RUST_OUT"
+
+###############################################################################
+# STEP 3 — Deep Enumeration & OS Fingerprinting (Nmap)
+###############################################################################
+echo -e "\n[*] STEP 3: Feeding open ports into Nmap for deep service analysis..."
+grep "->" "$RUST_OUT" | awk '{print $1}' | sort -u > "$OUTPUT_DIR/active_ports_hosts.tmp"
+
+if [ ! -s "$OUTPUT_DIR/active_ports_hosts.tmp" ]; then
+    nmap -sV -sC -O -iL "$LIVE_HOSTS" -oX "$NMAP_OUT" > /dev/null
+else
+    nmap -sV -sC -O -iL "$OUTPUT_DIR/active_ports_hosts.tmp" -oX "$NMAP_OUT" > /dev/null
+fi
+rm -f "$OUTPUT_DIR/active_ports_hosts.tmp"
+
+###############################################################################
+# STEP 4 — Network/Firewall Intelligence gathering (Hping3)
+###############################################################################
+echo -e "\n[*] STEP 4: Using Hping3 for firewall and uptime telemetry..."
+echo "Host,Estimated_Uptime,Firewall_Response" > "$HPING_OUT"
+
+while read -r ip; do
+    uptime_est=$(hping3 -S -p 80 -c 2 --tcp-timestamp "$ip" 2>/dev/null | grep -i "uptime" | awk -F'Uptime' '{print $2}' | xargs)
+    [ -z "$uptime_est" ] && uptime_est="Unknown/Protected"
+
+    firewall_test=$(hping3 -A -p 80 -c 1 "$ip" 2>/dev/null | grep -o "flags=[A-Z]*")
+    if [ -z "$firewall_test" ]; then
+         firewall_test="Dropped (Filtered)"
+    else
+         firewall_test="Responsive ($firewall_test)"
+    fi
+    echo "$ip,$uptime_est,$firewall_test" >> "$HPING_OUT"
+done < "$LIVE_HOSTS"
+
+###############################################################################
+# STEP 5 — Authenticated Deep Local Auditing (RHEL & JBoss Facts over SSH)
+###############################################################################
+echo -e "\n[*] STEP 5: Executing localized RHEL & JBoss profile payload over SSH..."
+
+# Define the local worker engine payload with your logic cleaned up
+SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes"
+if [ -n "$SSH_KEY" ]; then SSH_OPTS="$SSH_OPTS -i $SSH_KEY"; fi
+
+while read -r ip; do
+    # Only try SSH deep auditing if port 22 was discovered open by RustScan
+    if grep -q "$ip -> \[[^]*22[^]*\]" "$RUST_OUT" || grep -q "$ip -> \[[^]*all[^]*\]" "$RUST_OUT"; then
+        echo "    [->] Running deep local audit payload on $ip..."
+        
+        ssh $SSH_OPTS "${SSH_USER}@${ip}" "bash -s" << 'EOF' 2>/dev/null > "$LOCAL_AUDIT_DIR/${ip}.facts"
+        echo "===AUDIT_START==="
+        echo "hostname::$(hostname)"
+        echo "kernel::$(uname -r)"
+        echo "virt_type::$(virt-what 2>/dev/null | head -n 1 || echo 'Physical/Unknown')"
+        echo "rh_release::$(rpm -q --queryformat '%{VERSION}' --whatprovides redhat-release 2>/dev/null || echo 'Non-RHEL')"
+        echo "cpu_cores::$(cat /proc/cpuinfo 2>/dev/null | grep '^cpu cores' | sed -n 's/^.*:\s*//p' | uniq)"
+        echo "cpu_count::$(cat /proc/cpuinfo 2>/dev/null | grep '^processor' | wc -l)"
+        echo "cpu_model::$(cat /proc/cpuinfo 2>/dev/null | grep '^model name' | sed -n 's/^.*:\s*//p' | uniq)"
+        echo "pkg_count::$(rpm -qa | wc -l)"
+        
+        # Subman Logic (Patched user typo structural brackets)
+        if [ -d /etc/rhsm/facts ]; then
+            echo "subman_status::$(LANG=C subscription-manager status 2>/dev/null | grep -e 'Overall Status:'| cut -d ':' -f2 | xargs || echo 'Unregistered')"
+            echo "subman_skus::$(subscription-manager list --consumed 2>/dev/null | grep -e '^SKU' -e '^Subscription Name' | sed -e 's/SKU\s*.\s*//p' -e 's/Subscription Name\s*.\s*//p' | awk '{ ORS = (NR%2 ? \" - \" : \"\n\") } 1' | tr '\n' ';')"
+        else
+            echo "subman_status::Not Installed"
+            echo "subman_skus::None"
+        fi
+
+                echo "product_markers::$(
+                    {
+                        rpm -qa 2>/dev/null | grep -Ei 'openshift|ansible|satellite|katello|insights-client|jboss|wildfly|amq|activemq|artemis|3scale|infinispan|quarkus|camel|keycloak|389-ds|dirsrv|pki|dogtag|ceph|quay|openstack|rhosp|rhacm|rhacs|stackrox|rhdh|mtv|mta|tackle|device-edge' || true
+                        pgrep -af 'openshift|kube|ansible|awx|automation-controller|satellite|katello|jboss|wildfly|amq|keycloak|quay|ceph|openstack|stackrox|acm|mtv' || true
+                    } | tr '\n' ';' | sed 's/;\+$//'
+                )"
+
+        # JBoss Aggregator
+        echo "jboss_proc_count::$(pgrep -af jboss 2>/dev/null | grep -v grep | wc -l)"
+        JB_VERSIONS=""
+        for jar in $(find / /opt /app /eap -xdev -name 'jboss-modules.jar' 2>/dev/null); do
+            V=$(java -jar "${jar}" -version 2>/dev/null | grep version | sed 's/.*version\s//g')
+            [ -n "$V" ] && JB_VERSIONS="$JB_VERSIONS $V;"
+        done
+        echo "jboss_detected_versions::${JB_VERSIONS:-None}"
+        echo "===AUDIT_END==="
+EOF
+    fi
+done < "$LIVE_HOSTS"
+
+###############################################################################
+# STEP 6 — Unified Aggregation into a Master Data Sheet
+###############################################################################
+echo -e "\n[*] STEP 6: Generating unified consolidated environment report..."
+
+python3 - <<EOF
+import xml.etree.ElementTree as ET
+import csv
+import os
+import glob
+
+nmap_xml = "$NMAP_OUT"
+hping_txt = "$HPING_OUT"
+audit_dir = "$LOCAL_AUDIT_DIR"
+csv_out = "$CSV_OUT"
+summary_out = "$SUMMARY_CSV_OUT"
+
+# 1. Load network health checks
+hping_data = {}
+try:
+    with open(hping_txt, 'r') as f:
+        reader = csv.reader(f)
+        next(reader)
+        for row in reader:
+            if len(row) >= 3:
+                hping_data[row[0]] = {"uptime": row[1], "firewall": row[2]}
+except Exception:
+    pass
+
+# 2. Parse Deep Local SSH System Audits
+local_facts = {}
+for fact_file in glob.glob(os.path.join(audit_dir, "*.facts")):
+    ip = os.path.basename(fact_file).replace(".facts", "")
+    local_facts[ip] = {}
+    try:
+        with open(fact_file, 'r') as f:
+            for line in f:
+                if "::" in line:
+                    k, v = line.strip().split("::", 1)
+                    local_facts[ip][k] = v
+    except Exception:
+        pass
+
+# 3. Process Nmap Structure & Merge Data
+try:
+    tree = ET.parse(nmap_xml)
+    root = tree.getroot()
+except Exception as e:
+    print(f"[-] Parsing Error: {e}")
+    exit(1)
+
+headers = [
+    "Host IP", "Remote OS (Nmap)", "Port", "Protocol", "State", "Service Name", "Version Banner", 
+    "Est. Uptime", "Firewall State", "Local Hostname", "Kernel", "Virt Type", "RHEL Release", 
+    "CPU Cores", "Total Procs", "CPU Model", "Installed Packages", "Subman Status", "Active Subman SKUs", 
+    "Red Hat Products Detected", "Red Hat Product Confidence", "Red Hat Product Evidence"
+]
+
+product_aliases = {
+    "Red Hat Enterprise Linux (RHEL)": ["red hat enterprise linux", "rhel", "redhat-release"],
+    "Red Hat Device Edge": ["device edge"],
+    "Red Hat OpenShift": ["openshift", "ocp"],
+    "Red Hat OpenShift AI": ["openshift ai", "rhoai"],
+    "Red Hat Enterprise Linux AI (RHEL AI)": ["rhel ai", "enterprise linux ai"],
+    "Red Hat AI Enterprise": ["ai enterprise"],
+    "Red Hat AI Inference Server": ["ai inference server", "vllm", "triton"],
+    "Red Hat OpenStack Platform": ["openstack", "rhosp"],
+    "Red Hat Advanced Cluster Management for Kubernetes": ["advanced cluster management", "rhacm"],
+    "Red Hat Advanced Cluster Security for Kubernetes": ["advanced cluster security", "rhacs", "stackrox"],
+    "Red Hat Ansible Automation Platform": ["ansible automation platform", "aap", "automation controller", "awx"],
+    "Red Hat Ansible Automation Platform w/EDA": ["event-driven ansible", "ansible-rulebook", "ansible-eda"],
+    "Red Hat Ansible Lightspeed": ["ansible lightspeed"],
+    "Red Hat Satellite": ["satellite", "katello", "capsule"],
+    "Red Hat Insights": ["insights", "insights-client"],
+    "Red Hat Developer Hub": ["developer hub", "backstage-rhdh", "rhdh"],
+    "Red Hat JBoss Enterprise Application Platform (EAP)": ["jboss", "eap", "wildfly"],
+    "Red Hat JBoss Web Server": ["jboss web server", "jws", "tomcat"],
+    "Red Hat Application Foundations": ["application foundations"],
+    "Red Hat AMQ": ["red hat amq", "amq", "activemq", "artemis", "qpid"],
+    "Red Hat 3scale API Management": ["3scale", "apicast"],
+    "Red Hat Data Grid": ["data grid", "infinispan"],
+    "Red Hat build of Quarkus": ["quarkus"],
+    "Red Hat build of Apache Camel": ["apache camel", "camel"],
+    "Red Hat build of Keycloak": ["keycloak", "rhbk"],
+    "Red Hat Directory Server": ["389-ds", "dirsrv", "directory server"],
+    "Red Hat Certificate System": ["certificate system", "dogtag", "pki-tomcat"],
+    "Red Hat Ceph Storage": ["ceph", "cephadm", "rados"],
+    "Red Hat Quay": ["quay", "quay-registry"],
+    "Migration Toolkit for Applications / Virtualization": ["migration toolkit", "mtv", "mta", "tackle"],
+}
+
+product_scoring = {
+    "Red Hat Enterprise Linux (RHEL)": {"high_threshold": 4, "medium_threshold": 2, "require_for_high": []},
+    "Red Hat OpenShift": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat OpenShift AI": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat OpenStack Platform": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat Advanced Cluster Management for Kubernetes": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat Advanced Cluster Security for Kubernetes": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat Ansible Automation Platform": {"high_threshold": 7, "medium_threshold": 3, "require_for_high": ["sku"]},
+    "Red Hat Ansible Automation Platform w/EDA": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat Satellite": {"high_threshold": 7, "medium_threshold": 3, "require_for_high": ["sku"]},
+    "Red Hat Insights": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat JBoss Enterprise Application Platform (EAP)": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat AMQ": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat 3scale API Management": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat Data Grid": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat build of Keycloak": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat Ceph Storage": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+    "Red Hat Quay": {"high_threshold": 6, "medium_threshold": 3, "require_for_high": ["marker"]},
+}
+
+source_weights = {"sku": 4, "marker": 3, "service": 2, "os": 2, "misc": 1}
+
+level_rank = {"Low": 1, "Medium": 2, "High": 3}
+host_product_levels = {}
+
+def ingest_host_confidence(host_ip, confidence_entries):
+    if not host_ip or not confidence_entries:
+        return
+    for entry in confidence_entries.split(";"):
+        item = entry.strip()
+        if not item or ":" not in item:
+            continue
+        product, level = item.rsplit(":", 1)
+        product = product.strip()
+        level = level.strip()
+        if level not in level_rank:
+            continue
+        host_map = host_product_levels.setdefault(product, {})
+        prior = host_map.get(host_ip)
+        if prior is None or level_rank[level] > level_rank[prior]:
+            host_map[host_ip] = level
+
+def detect_products(source_blobs):
+    matched = []
+    confidence = []
+    evidence = []
+    for product, aliases in product_aliases.items():
+        hits_by_source = {}
+        for source, blob in source_blobs.items():
+            text = (blob or "").lower()
+            hits = [alias for alias in aliases if alias in text]
+            if hits:
+                hits_by_source[source] = hits
+
+        if hits_by_source:
+            matched.append(product)
+            weighted_score = 0
+            hit_sources = set(hits_by_source.keys())
+            hit_fragments = []
+            for source, hits in hits_by_source.items():
+                weighted_score += source_weights.get(source, 1)
+                unique_hits = []
+                for hit in hits:
+                    if hit not in unique_hits:
+                        unique_hits.append(hit)
+                hit_fragments.append(f"{source}:[{', '.join(unique_hits)}]")
+
+            rule = product_scoring.get(product, {})
+            high_threshold = int(rule.get("high_threshold", 6))
+            medium_threshold = int(rule.get("medium_threshold", 3))
+            require_for_high = set(rule.get("require_for_high", []))
+
+            if weighted_score >= high_threshold and require_for_high.issubset(hit_sources):
+                level = "High"
+            elif weighted_score >= medium_threshold:
+                level = "Medium"
+            else:
+                level = "Low"
+
+            confidence.append(f"{product}:{level}")
+            evidence.append(f"{product} ({weighted_score}): {'; '.join(hit_fragments)}")
+
+    return matched, confidence, evidence
+
+with open(csv_out, 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(headers)
+
+    for host in root.findall('host'):
+        ip = host.find("./address[@addrtype='ipv4']").get('addr') if host.find("./address[@addrtype='ipv4']") is not None else "Unknown"
+        os_match = host.find("./os/osmatch")
+        remote_os = os_match.get('name') if os_match is not None else "Unknown OS"
+
+        hp_meta = hping_data.get(ip, {"uptime": "N/A", "firewall": "N/A"})
+        lf = local_facts.get(ip, {})
+
+        # Fill defaults if Local Audit didn't execute
+        l_name = lf.get("hostname", "N/A (No Auth)")
+        l_kernel = lf.get("kernel", "N/A")
+        l_virt = lf.get("virt_type", "N/A")
+        l_rhel = lf.get("rh_release", "N/A")
+        l_cores = lf.get("cpu_cores", "N/A")
+        l_count = lf.get("cpu_count", "N/A")
+        l_model = lf.get("cpu_model", "N/A")
+        l_pkgs = lf.get("pkg_count", "N/A")
+        l_sub = lf.get("subman_status", "N/A")
+        l_skus = lf.get("subman_skus", "N/A")
+        l_markers = lf.get("product_markers", "")
+        l_jb_cnt = lf.get("jboss_proc_count", "N/A")
+        l_jb_ver = lf.get("jboss_detected_versions", "N/A")
+
+        host_sources = {
+            "os": " | ".join([remote_os, l_rhel]),
+            "sku": " | ".join([l_sub, l_skus]),
+            "marker": " | ".join([l_markers, l_jb_cnt, l_jb_ver]),
+        }
+        matched_products, product_confidence, product_evidence = detect_products(host_sources)
+        products_detected = "; ".join(matched_products) if matched_products else "None Detected"
+        products_confidence = "; ".join(product_confidence) if product_confidence else "None"
+        products_evidence = " | ".join(product_evidence) if product_evidence else "No product markers found"
+
+        ports = host.findall("./ports/port")
+        if not ports:
+            ingest_host_confidence(ip, products_confidence)
+            writer.writerow([
+                ip, remote_os, "None", "None", "Closed", "None", "None", 
+                hp_meta["uptime"], hp_meta["firewall"], l_name, l_kernel, l_virt, l_rhel, 
+                l_cores, l_count, l_model, l_pkgs, l_sub, l_skus, products_detected, products_confidence, products_evidence
+            ])
+            continue
+
+        for port in ports:
+            port_id = port.get('portid')
+            protocol = port.get('protocol')
+            state = port.find('state').get('state') if port.find('state') is not None else "unknown"
+            
+            service = port.find('service')
+            service_name = service.get('name') if service is not None else "Unknown"
+            product = service.get('product') if service is not None else ""
+            version = service.get('version') if service is not None else ""
+            full_version = f"{product} {version}".strip() or "Unknown"
+
+            row_sources = {
+                "os": host_sources["os"],
+                "sku": host_sources["sku"],
+                "marker": host_sources["marker"],
+                "service": " | ".join([service_name, full_version]),
+                "misc": " | ".join([str(port_id), str(protocol), str(state)]),
+            }
+            row_products, row_confidence, row_evidence = detect_products(row_sources)
+            row_products_detected = "; ".join(row_products) if row_products else products_detected
+            row_products_confidence = "; ".join(row_confidence) if row_confidence else products_confidence
+            row_products_evidence = " | ".join(row_evidence) if row_evidence else products_evidence
+
+            ingest_host_confidence(ip, row_products_confidence)
+
+            writer.writerow([
+                ip, remote_os, port_id, protocol, state, service_name, full_version, 
+                hp_meta["uptime"], hp_meta["firewall"], l_name, l_kernel, l_virt, l_rhel, 
+                l_cores, l_count, l_model, l_pkgs, l_sub, l_skus, row_products_detected, row_products_confidence, row_products_evidence
+            ])
+
+with open(summary_out, 'w', newline='') as sf:
+    swriter = csv.writer(sf)
+    swriter.writerow(["Red Hat Product", "High", "Medium", "Low", "Total Hosts"])
+
+    product_order = list(product_aliases.keys())
+    ordered_products = [p for p in product_order if p in host_product_levels]
+    for product in sorted(host_product_levels.keys()):
+        if product not in ordered_products:
+            ordered_products.append(product)
+
+    for product in ordered_products:
+        levels = host_product_levels.get(product, {})
+        high = sum(1 for v in levels.values() if v == "High")
+        medium = sum(1 for v in levels.values() if v == "Medium")
+        low = sum(1 for v in levels.values() if v == "Low")
+        total = len(levels)
+        swriter.writerow([product, high, medium, low, total])
+
+print("[+] Deep architecture map successfully generated.")
+print("[+] Product confidence summary generated.")
+EOF
+
+###############################################################################
+# Summary
+###############################################################################
+echo -e "\n========================================================"
+echo "               UNIFIED PIPELINE COMPLETE                "
+echo "========================================================"
+echo " Network Architecture Map  : $NMAP_OUT"
+echo " Local Script Extractions  : $LOCAL_AUDIT_DIR/"
+echo " MASTER REPORT CSV FILE    : $CSV_OUT"
+echo " PRODUCT SUMMARY CSV       : $SUMMARY_CSV_OUT"
+echo "========================================================"

@@ -1,0 +1,49 @@
+---
+product: device_edge
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_device_edge
+hardware_requirements:
+  notes: "Edge device requirements vary: CPU, memory, local storage, and network depend on deployment model (gateway, aggregator, endpoint). Consult product pages for validated configurations."
+os_requirements:
+  notes: "RHEL-based or RHEL-derived OS recommended for managed device edge components; ensure kernel and container runtime support."
+setup_requirements:
+  - "Provision secure networking, DNS, and time synchronization (chrony/NTP)"
+  - "Establish certificate and identity management for device authentication (PKI)"
+  - "Plan storage (local/remote) for logs, caches, and persistent data"
+  - "Prepare container runtime (podman) and image access (registry.redhat.io) for disconnected installations"
+best_practices:
+  - "Harden device images, minimize installed packages, and lock down management interfaces"
+  - "Use immutable images and tested OTA update channels; validate update rollback procedures"
+scenarios:
+  install:
+    preflight:
+      - "Verify device is running a supported RHEL-based OS and supported kernel"
+      - "Verify NTP/chrony synchronization"
+      - "Verify DNS and reverse DNS resolution"
+      - "Verify podman/container runtime is installed and can pull images from registry.redhat.io"
+      - "Verify available disk space and inode counts on required mounts (e.g., /var, /var/lib/edge)"
+    postinstall:
+      - "Apply device-specific tuning (journald rotation, log retention, ulimits) when `apply_changes` is true"
+  upgrade:
+    preflight:
+      - "Backup device configuration and staged artifacts before upgrade"
+    postinstall:
+      - "Validate agent connectivity and reapply tuned settings"
+  update:
+    preflight: []
+    postinstall: []
+  migrate:
+    preflight: []
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup destinations, credentials, and retention policies"
+    postinstall: []
+  snapshot:
+    preflight: []
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare target device OS major and kernel modules to match source"
+    postinstall:
+      - "Validate device connectivity and functionality after restore"

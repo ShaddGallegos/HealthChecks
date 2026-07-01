@@ -30,6 +30,25 @@ Quick commands
 ansible-playbook preflight.yml -i inventory.ini -e "product_name=rhel" --vault-password-file ~/.ansible/conf/.vaultpass.txt
 ```
 
+- Run in explicit report-only mode:
+
+```
+ansible-playbook preflight.yml -i inventory.ini -e "product_name=rhel" -e "healthcheck_check_mode_only=true"
+```
+
+- Run with installs/changes enabled:
+
+```
+ansible-playbook preflight.yml -i inventory.ini -e "product_name=rhel" -e "healthcheck_check_mode_only=false"
+```
+
+Notes on safety and opt-in changes
+- By default the preflight roles are non-destructive: they collect information and will NOT install packages or create users.
+- The default control is `-e "healthcheck_check_mode_only=true"`.
+- In `healthcheck_check_mode_only=true`, HealthChecks generate reports including missing prerequisite packages and do not install or change anything.
+- To allow the playbook to install missing packages and run guarded change paths, pass `-e "healthcheck_check_mode_only=false"`.
+- Product-level `install_deps` and `apply_changes` are derived from that flag by the entrypoint playbooks.
+
 Files of interest
 - `roles/preflight_template` — the generic role that performs checks and fixes.
 - `roles/preflight_prompt` — role that invokes the prompt helper for product variables.

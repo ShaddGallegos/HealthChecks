@@ -1,0 +1,12 @@
+---
+product: application_foundations
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_application_foundations/2024
+best_practices:
+  - "Guard any system-wide tuning behind `apply_changes` and test in staging"
+scenarios:
+  install:
+    preflight:
+      - "Inventory required components and verify their prerequisites"
+    postinstall:
+      - "Run component-level validation and integration tests"

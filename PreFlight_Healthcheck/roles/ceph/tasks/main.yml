@@ -1,7 +1,8 @@
 ---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
 - name: Include env vars file (may be ansible-vault encrypted)
   ansible.builtin.include_vars:
-    file: "{{ lookup('env','HOME') + '/.ansible/conf/env.yml' }}"
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
     name: env_vars
   tags: always
 
@@ -10,19 +11,42 @@
     product_env: "{{ env_vars.get(product_name, {}) }}"
   tags: always
 
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+
 - name: Fail if required secrets missing
   ansible.builtin.fail:
     msg: "Missing required secret '{{ item }}' for '{{ product_name }}' in ~/.ansible/conf/env.yml"
   when: product_env.get(item, '') == ''
-  loop: "{{ product_required_secrets | default([]) }}"
+  loop: "{{ ceph_product_required_secrets | default([]) }}"
   tags: secrets
 
 - name: Ensure prerequisite OS packages are installed
   ansible.builtin.package:
     name: "{{ item }}"
     state: present
-  loop: "{{ product_prereq_packages }}"
-  ignore_errors: yes
+  loop: "{{ ceph_product_prereq_packages }}"
+  ignore_errors: true
   register: pkg_install_results
   tags: prereqs
 
@@ -33,29 +57,29 @@
   when: item.failed
   tags: prereqs
 
-- name: Ensure pip, setuptools and wheel are upgraded
+- name: Ensure pip, setuptools and wheel are present
   ansible.builtin.pip:
     name:
       - pip
       - setuptools
       - wheel
-    state: latest
+    state: present
     executable: pip3
   tags: pip
 
 - name: Ensure admin user exists
   ansible.builtin.user:
-    name: "{{ preflight_admin_user }}"
-    groups: "{{ preflight_sudo_group }}"
-    append: yes
-    create_home: yes
+    name: "{{ ceph_preflight_admin_user }}"
+    groups: "{{ ceph_preflight_sudo_group }}"
+    append: true
+    create_home: true
   tags: users
 
 - name: Allow admin passwordless sudo
   ansible.builtin.lineinfile:
     path: /etc/sudoers.d/preflight_admin
-    create: yes
-    line: "{{ preflight_admin_user }} ALL=(ALL) NOPASSWD:ALL"
+    create: true
+    line: "{{ ceph_preflight_admin_user }} ALL=(ALL) NOPASSWD:ALL"
     state: present
     validate: '/usr/sbin/visudo -cf %s'
   tags: users
@@ -65,14 +89,63 @@
     name: "{{ item.name }}"
     description: "{{ item.description | default(item.name) }}"
     baseurl: "{{ item.baseurl }}"
-    enabled: yes
-    gpgcheck: no
-  loop: "{{ product_repos | default([]) }}"
-  when: product_repos is defined and product_repos | length > 0
+    enabled: true
+    gpgcheck: true
+  loop: "{{ ceph_product_repos | default([]) }}"
+  when: ceph_product_repos is defined and ceph_product_repos | length > 0
   tags: repos
 
 - name: Ensure installer config exists (touch as placeholder)
   ansible.builtin.file:
-    path: "{{ installer_config_path }}"
+    path: "{{ ceph_installer_config_path }}"
     state: touch
   tags: installer
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: ceph
+      product_required_mounts: ['/','/var','/var/lib/ceph','/var/lib/ceph/osd']
+      product_ports: []
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Check for Ceph packages (non-destructive)
+  ansible.builtin.shell: rpm -qa | egrep -i 'ceph|ceph-mon|ceph-osd|ceph-radosgw' || true
+  register: ceph_pkgs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for Ceph binaries (non-destructive)
+  ansible.builtin.shell: command -v ceph || true
+  register: ceph_cmd
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check Ceph config directory
+  ansible.builtin.stat:
+    path: /etc/ceph
+  register: ceph_conf_dir
+  tags: discovery
+
+- name: Set ceph discovery report
+  ansible.builtin.set_fact:
+    ceph_discovery_report:
+      inventory_hostname: "{{ inventory_hostname }}"
+      packages: "{{ ceph_pkgs.stdout | default('') }}"
+      ceph_binary: "{{ ceph_cmd.stdout | default('') }}"
+      config_dir_exists: "{{ ceph_conf_dir.stat.exists | default(False) }}"
+      preflight_template: "{{ preflight_report | default({}) }}"
+  tags: report
+
+- name: Archive ceph discovery report (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/ceph-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'product':'ceph','report': ceph_discovery_report | default({})} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

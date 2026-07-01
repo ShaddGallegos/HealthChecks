@@ -1,0 +1,17 @@
+---
+product: directory_server
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_directory_server/13
+best_practices:
+  - "Guard schema and replication changes behind `apply_changes` and an approved maintenance window"
+  - "Test backup and restore procedures regularly"
+scenarios:
+  install:
+    preflight:
+      - "Validate TLS certificates and replication credentials"
+    postinstall:
+      - "Verify replication agreements and indexing are healthy"
+  backup:
+    preflight:
+      - "Confirm backup encryption and retention policies"
+    postinstall: []

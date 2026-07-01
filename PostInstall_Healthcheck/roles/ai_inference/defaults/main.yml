@@ -1,0 +1,17 @@
+---
+ai_inference_postinstall_admin_user: admin
+ai_inference_postinstall_sudo_group: wheel
+ai_inference_product_repos: []
+ai_inference_product_prereq_packages: []
+ai_inference_product_required_secrets: []
+ai_inference_product_required_mounts: []
+ai_inference_installer_config_path: /etc/ai_inference-installer.conf
+ai_inference_product_ports: []
+ai_inference_install_deps: false
+ai_inference_apply_changes: false
+ai_inference_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+ai_inference_container_runtime: podman
+ai_inference_container_registry: registry.redhat.io

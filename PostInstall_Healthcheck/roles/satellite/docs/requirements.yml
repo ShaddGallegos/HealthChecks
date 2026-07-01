@@ -1,0 +1,52 @@
+---
+product: satellite
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_satellite/6.19
+  - https://docs.redhat.com/en/documentation/red_hat_satellite/6.19/html/installing_satellite_server_in_a_connected_network_environment
+  - https://docs.redhat.com/en/documentation/red_hat_satellite/6.19/html/tuning_performance_of_red_hat_satellite
+hardware_requirements:
+  notes: "Refer to the tuning guide for specific VM/physical sizing per topology."
+os_requirements:
+  notes: "Refer to release-specific docs for supported OS versions and required packages."
+setup_requirements:
+  - "Prepare DNS, certificates, and time synchronization before applying tuning changes"
+  - "Ensure working backups before running any post-install tuning" 
+best_practices:
+  - "Guard all destructive or tuning tasks behind `apply_changes` and `not ansible_check_mode`"
+  - "Prefer non-destructive discovery checks in PreFlight and keep tuning in PostInstall"
+  - "Follow the tuning guide for database and JVM tuning where applicable"
+  - "Validate changes in a staging environment before applying to production"
+scenarios:
+  install:
+    preflight:
+      - "Verify DNS, NTP, subscriptions, and basic network/connectivity"
+    postinstall:
+      - "Apply tuned sysctl and file descriptor changes only when `apply_changes` is true"
+      - "Tune database parameters and JVM settings according to the tuning guide"
+  upgrade:
+    preflight:
+      - "Confirm backups and snapshot procedures are functional"
+    postinstall:
+      - "Validate performance and re-run tuning after upgrade if required"
+  update:
+    preflight:
+      - "Confirm patch compatibility and check known issues in release notes"
+    postinstall: []
+  migrate:
+    preflight:
+      - "Plan capacity and network/topology impacts for migration flows"
+    postinstall:
+      - "Reconcile tuning parameters after topology or scale changes"
+  backup:
+    preflight:
+      - "Verify backup playbooks and storage destination"
+    postinstall:
+      - "Regularly test restore process in a non-production environment"
+  snapshot:
+    preflight: []
+    postinstall: []
+  restore:
+    preflight:
+      - "Validate restoration plan and inventories"
+    postinstall:
+      - "Confirm system health and data integrity after restore"

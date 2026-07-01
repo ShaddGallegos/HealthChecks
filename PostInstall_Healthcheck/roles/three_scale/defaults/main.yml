@@ -1,0 +1,17 @@
+---
+three_scale_postinstall_admin_user: admin
+three_scale_postinstall_sudo_group: wheel
+three_scale_product_repos: []
+three_scale_product_prereq_packages: []
+three_scale_product_required_secrets: []
+three_scale_product_required_mounts: []
+three_scale_installer_config_path: /etc/three_scale-installer.conf
+three_scale_product_ports: []
+three_scale_install_deps: false
+three_scale_apply_changes: false
+three_scale_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+three_scale_container_runtime: podman
+three_scale_container_registry: registry.redhat.io

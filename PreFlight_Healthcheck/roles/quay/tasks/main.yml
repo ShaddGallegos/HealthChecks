@@ -1,0 +1,247 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in quay_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ quay_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+    product_name: quay
+    product_required_mounts: ['/','/var','/var/lib/quay','/etc/quay']
+    product_ports: [443,80,8443]
+    product_repos: []
+    io_benchmark_enabled: false
+  tags: preflight
+
+- name: Check for installed Quay packages (non-destructive)
+  ansible.builtin.shell: |
+    if rpm -q {{ item }} >/dev/null 2>&1; then
+      rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE}\n' {{ item }}
+    else
+      echo "__not_installed__"
+    fi
+  register: quay_pkg_versions
+  failed_when: false
+  changed_when: false
+  loop: "{{ quay_product_prereq_packages | default(['quay','quay-enterprise','quay-server']) }}"
+  tags: discovery
+
+- name: Check Quay service status (non-destructive)
+  ansible.builtin.shell: systemctl status quay || true
+  register: quay_service
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check Quay config directory exists
+  ansible.builtin.stat:
+    path: /etc/quay
+  register: quay_config_dir
+  tags: discovery
+
+- name: List podman containers related to quay (non-destructive)
+  ansible.builtin.command: podman ps -a --format json
+  register: podman_ps
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Snapshot listening ports (non-destructive)
+  ansible.builtin.shell: ss -ltnp || true
+  register: ss_out
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check TLS cert files exist (non-destructive)
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: cert_check
+  failed_when: false
+  changed_when: false
+  loop:
+    - /etc/pki/tls/certs/quay.crt
+    - /etc/quay/tls/server.crt
+  tags: discovery
+
+- name: Find Quay config files under /etc/quay
+  ansible.builtin.find:
+    paths: /etc/quay
+    patterns: "*.yml,*.yaml,*.conf,*.ini,*.json"
+    file_type: file
+    recurse: yes
+  register: quay_config_files
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Grep for common backend keys inside Quay config files (non-fatal)
+  ansible.builtin.shell: |
+    grep -iE 'database|db_|postgres|redis|s3|bucket|storage|registry' "{{ item.path }}" || true
+  register: quay_config_greps
+  failed_when: false
+  changed_when: false
+  loop: "{{ quay_config_files.files | default([]) }}"
+  when: quay_config_files.matched is defined and quay_config_files.matched > 0
+  tags: discovery
+
+- name: Parse podman ps JSON into fact for Quay containers
+  ansible.builtin.set_fact:
+    quay_containers: "{{ (podman_ps.stdout | default('[]')) | from_json }}"
+  failed_when: false
+  tags: discovery
+
+- name: Count running Quay-related containers
+  ansible.builtin.set_fact:
+    quay_running_count: "{{ quay_containers | selectattr('State','equalto','running') | list | length }}"
+  when: quay_containers is defined
+  tags: discovery
+
+- name: Check for local Postgres listener (port 5432)
+  ansible.builtin.shell: ss -ltnp | grep -E ':5432\b' || true
+  register: postgres_listen
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check Quay TLS cert expiry (days remaining) for known cert paths
+  ansible.builtin.shell: |
+    if [ -f "{{ item }}" ]; then
+      enddate=$(openssl x509 -enddate -noout -in "{{ item }}" 2>/dev/null | cut -d= -f2)
+      if [ -n "$enddate" ]; then
+        endsecs=$(date -d "$enddate" +%s 2>/dev/null || echo 0)
+        now=$(date +%s)
+        days=$(( (endsecs - now) / 86400 ))
+        echo "$days"
+      else
+        echo "unknown"
+      fi
+    else
+      echo "missing"
+    fi
+  register: quay_cert_expiry
+  failed_when: false
+  changed_when: false
+  loop:
+    - /etc/pki/tls/certs/quay.crt
+    - /etc/quay/tls/server.crt
+  tags: discovery
+
+- name: Assemble Quay enhanced discovery facts
+  ansible.builtin.set_fact:
+    quay_enhanced:
+      config_files: "{{ quay_config_files.files | default([]) }}"
+      config_greps: "{{ quay_config_greps.results | default([]) }}"
+      running_containers: "{{ quay_running_count | default(0) }}"
+      postgres_listen: "{{ postgres_listen.stdout | default('') }}"
+      cert_expiry_days: "{{ quay_cert_expiry.results | map(attribute='stdout') | list }}"
+  tags: discovery
+
+- name: Check DB endpoint reachability from product_env (non-fatal)
+  ansible.builtin.shell: |
+    if [ -n "{{ product_env.get('db_host','') }}" ]; then
+      host="{{ product_env.get('db_host','') }}"
+      port="{{ product_env.get('db_port','5432') }}"
+      bash -c "</dev/tcp/${host}/${port}" >/dev/null 2>&1 && echo reachable || echo unreachable
+    else
+      echo no-db-config
+    fi
+  register: db_reach
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check S3 endpoint reachability from product_env (non-fatal)
+  ansible.builtin.shell: |
+    if [ -n "{{ product_env.get('s3_endpoint','') }}" ]; then
+      curl -sS --connect-timeout 3 "{{ product_env.get('s3_endpoint') }}" >/dev/null 2>&1 && echo reachable || echo unreachable
+    else
+      echo no-s3-config
+    fi
+  register: s3_reach
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Extract TLS cert subject/issuer for known cert paths
+  ansible.builtin.shell: |
+    if [ -f "{{ item }}" ]; then
+      openssl x509 -noout -subject -issuer -in "{{ item }}" 2>/dev/null || true
+    else
+      echo missing
+    fi
+  register: cert_subjects
+  failed_when: false
+  changed_when: false
+  loop:
+    - /etc/pki/tls/certs/quay.crt
+    - /etc/quay/tls/server.crt
+  tags: discovery
+
+- name: Add connectivity checks to quay_enhanced fact
+  ansible.builtin.set_fact:
+    quay_enhanced: "{{ quay_enhanced | default({}) | combine({'db_reach': db_reach.stdout | default(''), 's3_reach': s3_reach.stdout | default(''), 'cert_subjects': cert_subjects.results | default([])}) }}"
+  tags: discovery
+
+- name: Set quay_discovery_report fact
+  ansible.builtin.set_fact:
+    quay_discovery_report:
+      inventory_hostname: "{{ inventory_hostname }}"
+      os: "{{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_major_version'] }}"
+      package_versions: "{{ quay_pkg_versions.results | map(attribute='stdout') | list }}"
+      service_status: "{{ quay_service.stdout | default('not-checked') }}"
+      config_dir_exists: "{{ quay_config_dir.stat.exists | default(False) }}"
+      podman_ps_raw: "{{ podman_ps.stdout | default('') }}"
+      listening_snapshot: "{{ ss_out.stdout_lines | default([]) | list }}"
+      certs: "{{ cert_check.results | map(attribute='stat.exists') | list }}"
+      enhanced: "{{ quay_enhanced | default({}) }}"
+      preflight_template: "{{ preflight_report | default({}) }}"
+  tags: discovery
+
+- name: Archive discovery report (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/quay-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'product':'quay','report': quay_discovery_report | default({})} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

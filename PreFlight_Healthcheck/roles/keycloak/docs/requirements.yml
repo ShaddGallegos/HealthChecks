@@ -1,0 +1,23 @@
+---
+product: keycloak
+source_urls:
+  - https://www.keycloak.org/documentation.html
+  - https://docs.redhat.com/en/documentation/red_hat_single_sign-on
+hardware_requirements:
+  notes: "Sizing depends on user concurrency and SSO workload; plan memory and CPU accordingly."
+setup_requirements:
+  - "Ensure secure storage for keys and TLS certificates"
+  - "Plan database backend and replication if required"
+best_practices:
+  - "Use externalized user stores and monitor token lifetimes"
+scenarios:
+  install:
+    preflight:
+      - "Validate DNS, TLS, and database connectivity"
+      - "Confirm system time synchronization for token validity"
+    postinstall:
+      - "Validate realm configuration, client registrations, and backup of keys"
+  backup:
+    preflight:
+      - "Confirm secure backup process for key material and database"
+    postinstall: []

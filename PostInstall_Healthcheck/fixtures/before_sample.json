@@ -1,0 +1,24 @@
+{
+  "inventory_hostname": "host.example.com",
+  "timestamp": "2026-06-30T12:00:00",
+  "ansible_facts": {
+    "distribution": "RHEL",
+    "distribution_major": "8",
+    "kernel": "5.14",
+    "ipv4_addresses": ["10.0.0.10"]
+  },
+  "rpm_packages": [
+    "pkgA-1.0",
+    "pkgB-2.0"
+  ],
+  "enabled_services": ["ssh.service"],
+  "running_services": ["ssh.service"],
+  "listening_tcp": ["0.0.0.0:22","127.0.0.1:11434"],
+  "listening_udp": [],
+  "users": ["root:x:0:0:root:/root:/bin/bash","appuser:x:1000:1000:App:/home/appuser:/bin/bash"],
+  "groups": ["root:x:0:","appuser:x:1000:"],
+  "sudoers": "root ALL=(ALL) ALL\n",
+  "firewall": "No active firewall (sample)",
+  "selinux": "Enforcing",
+  "sysctl": ["net.ipv4.ip_forward = 0"]
+}

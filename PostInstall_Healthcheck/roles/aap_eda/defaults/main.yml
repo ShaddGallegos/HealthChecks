@@ -1,0 +1,17 @@
+---
+aap_eda_postinstall_admin_user: admin
+aap_eda_postinstall_sudo_group: wheel
+aap_eda_product_repos: []
+aap_eda_product_prereq_packages: []
+aap_eda_product_required_secrets: []
+aap_eda_product_required_mounts: []
+aap_eda_installer_config_path: /etc/aap_eda-installer.conf
+aap_eda_product_ports: []
+aap_eda_install_deps: false
+aap_eda_apply_changes: false
+aap_eda_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+aap_eda_container_runtime: podman
+aap_eda_container_registry: registry.redhat.io

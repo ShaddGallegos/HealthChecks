@@ -1,0 +1,102 @@
+---
+satellite_preflight_admin_user: admin
+satellite_preflight_container_rootless: false
+satellite_preflight_sudo_group: wheel
+satellite_product_repos:
+  - name: satellite-base
+    description: Satellite repository
+    baseurl: ""
+satellite_product_prereq_packages:
+  - python3
+  - python3-venv
+  - python3-pip
+satellite_product_required_secrets:
+  - admin_password
+  - repo_baseurl
+  - installer_token
+satellite_product_required_mounts:
+  - /var
+  - /opt
+satellite_installer_config_path: /etc/satellite-installer.conf
+
+# Satellite tuning and audit defaults (imported from HealthChecks/Satellite_Healthcheck/vars.yml)
+# Destructive toggles default to false to keep role non-destructive by default.
+satellite_tuning_size: "medium"
+
+# Puma/Ruby worker tuning
+puma_workers: 4
+puma_threads_max: 16
+
+# Tuned/storage profile
+satellite_system_tuned_profile: "enterprise-storage"
+
+# Tuning toggles - default to false for safety
+apply_tuning_profile: false
+disable_transparent_hugepages: false
+apply_puma_tuning: false
+apply_tuned_storage_profile: false
+
+# Security and endpoint controls
+validate_satellite_certs: false
+
+# Execution & help controls
+satellite_show_help: false
+
+# IO benchmark defaults - disabled by default
+io_benchmark_enabled: false
+io_benchmark_path: "/var/lib/pulp/io_perf_test_marker"
+io_benchmark_blocksize: "1M"
+io_benchmark_count: 100
+io_benchmark_oflag: "direct"
+
+# Ports to verify for Satellite by default
+satellite_product_ports:
+  - { port: 80, proto: 'tcp', desc: 'HTTP Web Redirect' }
+  - { port: 443, proto: 'tcp', desc: 'HTTPS Web UI/API' }
+  - { port: 5647, proto: 'tcp', desc: 'qdr/proton (Capsule sync)' }
+  - { port: 8443, proto: 'tcp', desc: 'Smart Proxy/Candlepin' }
+  - { port: 9090, proto: 'tcp', desc: 'Cockpit Web console' }
+
+# Control flags (role-level)
+satellite_install_deps: false
+satellite_apply_changes: false
+
+# Container policy defaults
+satellite_container_runtime: podman
+satellite_container_registry: registry.redhat.io
+
+# Supported RHEL major versions
+satellite_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+
+# Satellite hosts export (REST API)
+satellite_hosts_export_enabled: false
+satellite_hosts_export_validate_certs: false
+satellite_hosts_export_per_page: 20000
+satellite_hosts_export_timeout: 120
+satellite_hosts_export_output_dir: "{{ playbook_dir }}/artifacts/satellite_hosts"
+satellite_hosts_export_validate_json: true
+satellite_hosts_export_write_summary: true
+satellite_hosts_export_summary_file: "{{ satellite_hosts_export_output_dir }}/satellite_hosts_summary.csv"
+satellite_hosts_export_enforce_min_results: false
+satellite_hosts_export_min_results_threshold: 1
+satellite_hosts_export_required_top_level_keys:
+  - results
+  - subtotal
+  - total
+  - page
+  - per_page
+
+# Optional global fallback credentials for export requests.
+# Prefer storing these in ~/.ansible/conf/env.yml under the 'satellite' key.
+satellite_hosts_export_username: ""
+satellite_hosts_export_password: ""
+
+# Optional multi-server list. Example item:
+# - name: satellite-a
+#   url: "https://satellite-a.example.com"
+#   username: "api_user"
+#   password: "api_password"
+satellite_hosts_export_servers: []

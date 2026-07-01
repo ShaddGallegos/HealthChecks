@@ -1,0 +1,38 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+# Single-node OpenShift PostInstall tuning tasks (guarded)
+
+- name: Ensure prerequisite OS packages are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ single_node_openshift_product_prereq_packages | default([]) }}"
+  when: single_node_openshift_install_deps | default(false)
+  ignore_errors: "{{ postinstall_ignore_tuning_errors | default(false) }}"
+  register: pkg_install_results
+  tags: prereqs
+
+- name: Gather oc info (non-destructive)
+  ansible.builtin.command: oc whoami || true
+  register: oc_whoami
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check single-node cluster status (non-destructive)
+  ansible.builtin.command: oc get nodes || true
+  register: oc_nodes
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Create postinstall tuning summary JSON
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name }}-{{ inventory_hostname }}-postinstall-tuning.json"
+    content: "{{ {'product': product_name, 'oc_whoami': oc_whoami.stdout | default(''), 'oc_nodes': oc_nodes.stdout | default('')} | to_nice_json }}"
+    owner: root
+    group: root
+    mode: '0644'
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

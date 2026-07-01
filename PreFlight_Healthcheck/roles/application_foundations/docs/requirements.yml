@@ -1,0 +1,16 @@
+---
+product: application_foundations
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_application_foundations/2024
+hardware_requirements:
+  notes: "Application Foundations is a collection; requirements depend on included components."
+setup_requirements:
+  - "Review component-level requirements for any frameworks you plan to use"
+best_practices:
+  - "Follow component-specific guidance and validate integration in staging"
+scenarios:
+  install:
+    preflight:
+      - "Identify which components of Application Foundations will be used and check their prerequisites"
+    postinstall:
+      - "Validate component integration and runtime behavior"

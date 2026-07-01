@@ -1,0 +1,73 @@
+---
+- name: Run ZMap host discovery across configured ports
+  ansible.builtin.shell: |
+    set -euo pipefail
+    : > "{{ network_inventory_live_hosts }}"
+    for p in {{ ports }}; do
+      zmap -p "$p" -w "{{ network_inventory_output_dir }}/zmap_whitelist.tmp" -o "{{ network_inventory_zmap_base }}.$p" --quiet
+      cat "{{ network_inventory_zmap_base }}.$p" >> "{{ network_inventory_live_hosts }}"
+      rm -f "{{ network_inventory_zmap_base }}.$p"
+    done
+    sort -u "{{ network_inventory_live_hosts }}" -o "{{ network_inventory_live_hosts }}"
+  args:
+    executable: /bin/bash
+  vars:
+    ports: "{{ network_inventory_discovery_ports | join(' ') }}"
+  changed_when: true
+
+- name: Remove temporary zmap whitelist file
+  ansible.builtin.file:
+    path: "{{ network_inventory_output_dir }}/zmap_whitelist.tmp"
+    state: absent
+
+- name: Count discovered hosts after ZMap
+  ansible.builtin.shell: "wc -l < {{ network_inventory_live_hosts }}"
+  args:
+    executable: /bin/bash
+  register: network_inventory_live_count
+  changed_when: false
+
+- name: Fallback host discovery with Hping3 and Nmap list scan
+  ansible.builtin.shell: |
+    set -euo pipefail
+    : > "{{ network_inventory_output_dir }}/all_ips.tmp"
+    for segment in {{ network_inventory_target_segments | join(' ') }}; do
+      nmap -sL -n "$segment" | awk '/Nmap scan report for/{print $5}' >> "{{ network_inventory_output_dir }}/all_ips.tmp"
+    done
+    : > "{{ network_inventory_live_hosts }}"
+    while read -r ip; do
+      hping3 -S -p 80 -c 1 "$ip" 2>/dev/null | grep -q "flags=" && echo "$ip" >> "{{ network_inventory_live_hosts }}" || true
+      hping3 -1 -c 1 "$ip" 2>/dev/null | grep -q "ttl=" && echo "$ip" >> "{{ network_inventory_live_hosts }}" || true
+    done < "{{ network_inventory_output_dir }}/all_ips.tmp"
+    sort -u "{{ network_inventory_live_hosts }}" -o "{{ network_inventory_live_hosts }}"
+    rm -f "{{ network_inventory_output_dir }}/all_ips.tmp"
+  args:
+    executable: /bin/bash
+  when: (network_inventory_live_count.stdout | int) == 0
+  changed_when: true
+
+- name: Recount discovered hosts
+  ansible.builtin.shell: "wc -l < {{ network_inventory_live_hosts }}"
+  args:
+    executable: /bin/bash
+  register: network_inventory_final_live_count
+  changed_when: false
+
+- name: Fail if no live hosts were discovered
+  ansible.builtin.fail:
+    msg: "No live hosts discovered across configured segments: {{ network_inventory_target_segments | join(', ') }}"
+  when: (network_inventory_final_live_count.stdout | int) == 0
+
+- name: Build discovered hosts inventory file
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {
+      echo "[discovered]"
+      while read -r ip; do
+        [ -z "$ip" ] && continue
+        echo "$ip ansible_host=$ip"
+      done < "{{ network_inventory_live_hosts }}"
+    } > "{{ network_inventory_inventory_out }}"
+  args:
+    executable: /bin/bash
+  changed_when: true

@@ -1,0 +1,33 @@
+---
+product: three_scale
+source_urls:
+  - https://access.redhat.com/documentation/en-us/red_hat_3scale_api_management
+hardware_requirements:
+  notes: "3scale requires persistent storage for the API Gateway and Backends, and a database for configuration/state. Size according to expected API throughput."
+setup_requirements:
+  - "Provision a supported database backend and verify connectivity"
+  - "Ensure object storage or filesystem storage for gateway artifacts when required"
+  - "Obtain TLS certificates for management and developer portals"
+best_practices:
+  - "Validate gateway performance under expected loads and configure autoscaling when possible"
+  - "Use least privilege credentials for integration points"
+scenarios:
+  install:
+    preflight:
+      - "Verify DB connectivity and schema prerequisites"
+      - "Confirm TLS certificates and domain configuration"
+    postinstall:
+      - "Validate API publishing, developer portal access, and gateway connectivity"
+  upgrade:
+    preflight:
+      - "Back up configuration and developer portal data"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backups for DB and gateway artifacts"
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare target system with matching DB schema and storage"
+    postinstall:
+      - "Validate API traffic and developer portal after restore"

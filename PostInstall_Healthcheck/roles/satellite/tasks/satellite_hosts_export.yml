@@ -1,0 +1,183 @@
+---
+- name: Build effective Satellite hosts export server list
+  ansible.builtin.set_fact:
+    satellite_hosts_export_effective_servers: >-
+      {{
+        satellite_hosts_export_servers
+        if (satellite_hosts_export_servers | length > 0)
+        else [
+          {
+            'name': inventory_hostname,
+            'url': 'https://' + (ansible_host | default(inventory_hostname)),
+            'username': (
+              satellite_hosts_export_username
+              if (satellite_hosts_export_username | length > 0)
+              else satellite_product_env.get('sat_username', '')
+            ),
+            'password': (
+              satellite_hosts_export_password
+              if (satellite_hosts_export_password | length > 0)
+              else satellite_product_env.get('sat_password', '')
+            )
+          }
+        ]
+      }}
+  tags:
+    - satellite_hosts_export
+
+- name: Validate hosts export server entries include URL and credentials
+  ansible.builtin.assert:
+    that:
+      - item.url is defined
+      - (item.url | string | length) > 0
+      - item.username is defined
+      - (item.username | string | length) > 0
+      - item.password is defined
+      - (item.password | string | length) > 0
+    fail_msg: >-
+      Invalid Satellite export server entry: {{ item | to_nice_json }}.
+      Required fields: url, username, password.
+  loop: "{{ satellite_hosts_export_effective_servers }}"
+  no_log: true
+  tags:
+    - satellite_hosts_export
+
+- name: Ensure local output directory exists for Satellite hosts export
+  ansible.builtin.file:
+    path: "{{ satellite_hosts_export_output_dir }}"
+    state: directory
+    mode: '0750'
+  delegate_to: localhost
+  become: false
+  tags:
+    - satellite_hosts_export
+
+- name: Query Satellite hosts API
+  ansible.builtin.uri:
+    url: "{{ item.url | regex_replace('/+$', '') }}/api/v2/hosts?per_page={{ satellite_hosts_export_per_page }}"
+    method: GET
+    force_basic_auth: true
+    url_username: "{{ item.username }}"
+    url_password: "{{ item.password }}"
+    validate_certs: "{{ satellite_hosts_export_validate_certs | bool }}"
+    return_content: true
+    timeout: "{{ satellite_hosts_export_timeout }}"
+    status_code: 200
+    headers:
+      Accept: application/json
+  loop: "{{ satellite_hosts_export_effective_servers }}"
+  register: satellite_hosts_export_api_results
+  no_log: true
+  delegate_to: localhost
+  become: false
+  tags:
+    - satellite_hosts_export
+
+- name: Persist Satellite hosts export JSON files
+  ansible.builtin.copy:
+    dest: >-
+      {{
+        satellite_hosts_export_output_dir
+      }}/{{
+        (item.item.name | default(item.item.url | regex_replace('^https?://', '')))
+        | regex_replace('[^A-Za-z0-9_.-]', '_')
+      }}_hosts.json
+    content: "{{ item.json | to_nice_json }}\n"
+    mode: '0600'
+  loop: "{{ satellite_hosts_export_api_results.results | default([]) }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  tags:
+    - satellite_hosts_export
+
+- name: Validate Satellite hosts JSON structure
+  ansible.builtin.assert:
+    that:
+      - item.json is mapping
+      - (satellite_hosts_export_required_top_level_keys | difference(item.json.keys() | list) | length) == 0
+      - item.json.results is iterable
+    fail_msg: >-
+      Satellite hosts export JSON validation failed for {{ item.item.name | default(item.item.url) }}.
+      Missing keys: {{ satellite_hosts_export_required_top_level_keys | difference(item.json.keys() | list) }}
+  loop: "{{ satellite_hosts_export_api_results.results | default([]) }}"
+  when: satellite_hosts_export_validate_json | bool
+  no_log: true
+  tags:
+    - satellite_hosts_export
+
+- name: Initialize Satellite export summary rows
+  ansible.builtin.set_fact:
+    satellite_hosts_export_summary_rows: []
+  tags:
+    - satellite_hosts_export
+
+- name: Build Satellite export summary rows
+  ansible.builtin.set_fact:
+    satellite_hosts_export_summary_rows: >-
+      {{
+        satellite_hosts_export_summary_rows + [
+          {
+            'server': (item.item.name | default(item.item.url)),
+            'url': (item.item.url | default('')),
+            'results_count': (item.json.results | default([]) | length),
+            'subtotal': (item.json.subtotal | default('')),
+            'total': (item.json.total | default('')),
+            'page': (item.json.page | default('')),
+            'per_page': (item.json.per_page | default('')),
+            'output_file': (
+              satellite_hosts_export_output_dir + '/' +
+              ((item.item.name | default(item.item.url | regex_replace('^https?://', ''))) | regex_replace('[^A-Za-z0-9_.-]', '_')) +
+              '_hosts.json'
+            )
+          }
+        ]
+      }}
+  loop: "{{ satellite_hosts_export_api_results.results | default([]) }}"
+  no_log: true
+  tags:
+    - satellite_hosts_export
+
+- name: Enforce minimum exported host threshold per Satellite server
+  ansible.builtin.assert:
+    that:
+      - (item.results_count | int) >= (satellite_hosts_export_min_results_threshold | int)
+    fail_msg: >-
+      Satellite hosts export for {{ item.server }} returned {{ item.results_count }} hosts,
+      below configured threshold {{ satellite_hosts_export_min_results_threshold }}.
+      Output file: {{ item.output_file }}
+  loop: "{{ satellite_hosts_export_summary_rows | default([]) }}"
+  when: satellite_hosts_export_enforce_min_results | bool
+  tags:
+    - satellite_hosts_export
+
+- name: Write Satellite hosts export summary CSV
+  ansible.builtin.copy:
+    dest: "{{ satellite_hosts_export_summary_file }}"
+    mode: '0640'
+    content: |
+      server,url,results_count,subtotal,total,page,per_page,output_file
+      {% for row in satellite_hosts_export_summary_rows | default([]) %}
+      {{ row.server }},{{ row.url }},{{ row.results_count }},{{ row.subtotal }},{{ row.total }},{{ row.page }},{{ row.per_page }},{{ row.output_file }}
+      {% endfor %}
+  when: satellite_hosts_export_write_summary | bool
+  delegate_to: localhost
+  become: false
+  tags:
+    - satellite_hosts_export
+
+- name: Report Satellite hosts export file locations
+  ansible.builtin.debug:
+    msg: >-
+      Exported hosts JSON for {{ item.item.name | default(item.item.url) }} to
+      {{ satellite_hosts_export_output_dir }}/{{ (item.item.name | default(item.item.url | regex_replace('^https?://', ''))) | regex_replace('[^A-Za-z0-9_.-]', '_') }}_hosts.json
+  loop: "{{ satellite_hosts_export_api_results.results | default([]) }}"
+  tags:
+    - satellite_hosts_export
+
+- name: Report Satellite hosts export summary location
+  ansible.builtin.debug:
+    msg: "Satellite hosts export summary CSV: {{ satellite_hosts_export_summary_file }}"
+  when: satellite_hosts_export_write_summary | bool
+  tags:
+    - satellite_hosts_export

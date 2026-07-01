@@ -1,20 +1,21 @@
 ---
-preflight_admin_user: admin
-preflight_container_rootless: false
-preflight_sudo_group: wheel
-product_repos:
+# ansible-lint: skip_list=var-naming
+rhosp_preflight_admin_user: admin
+rhosp_preflight_container_rootless: false
+rhosp_preflight_sudo_group: wheel
+rhosp_product_repos:
   - name: rhosp-base
     description: RHOSP repository
     baseurl: ""
-product_prereq_packages:
+rhosp_product_prereq_packages:
   - python3
   - python3-venv
   - python3-pip
-product_required_secrets:
+rhosp_product_required_secrets:
   - admin_password
   - repo_baseurl
   - installer_token
-product_required_mounts:
+rhosp_product_required_mounts:
   - /var
   - /opt
-installer_config_path: /etc/rhosp-installer.conf
+rhosp_installer_config_path: /etc/rhosp-installer.conf

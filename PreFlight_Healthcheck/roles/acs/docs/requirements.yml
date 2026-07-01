@@ -1,0 +1,37 @@
+---
+product: acs
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_security_for_kubernetes/4.11
+hardware_requirements:
+  notes: "ACS is OpenShift-integrated; follow product documentation for sizing and cluster requirements."
+os_requirements:
+  notes: "Requires supported OpenShift versions and operator installation."
+setup_requirements:
+  - "Ensure operator installation via OLM and required permissions"
+  - "Prepare image registry and required network access for operator components"
+best_practices:
+  - "Validate policies in a test cluster before promoting to production"
+scenarios:
+  install:
+    preflight:
+      - "Verify OpenShift compatibility and operator prerequisites"
+      - "Verify resource quotas and cluster capacity for ACS components"
+    postinstall:
+      - "Validate policy enforcement and scanning workflows"
+  upgrade:
+    preflight:
+      - "Backup custom policies and validate upgrade path"
+    postinstall:
+      - "Validate policy behavior and scanning after upgrade"
+  migrate:
+    preflight:
+      - "Plan migration of policies and alerting destinations"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup strategy for ACS configuration data"
+    postinstall: []
+  restore:
+    preflight:
+      - "Test restore in non-production environments"
+    postinstall: []

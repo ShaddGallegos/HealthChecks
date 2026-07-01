@@ -1,0 +1,27 @@
+---
+- name: Network Inventory Role Runner
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: true
+
+  vars:
+    # One or more network segments to scan.
+    network_inventory_target_segments:
+      - "192.168.1.0/24"
+
+    network_inventory_output_dir: "./scan_results"
+
+    # Authentication options for optional deep SSH audit.
+    network_inventory_ssh_user: "root"
+    network_inventory_ssh_key: ""
+    network_inventory_use_sshpass: false
+    network_inventory_ssh_password: ""
+
+    # Reporting options.
+    network_inventory_enable_local_audit: true
+    network_inventory_enable_xlsx: false
+    network_inventory_require_openpyxl: false
+
+  roles:
+    - role: network_inventory

@@ -1,0 +1,17 @@
+---
+quarkus_postinstall_admin_user: admin
+quarkus_postinstall_sudo_group: wheel
+quarkus_product_repos: []
+quarkus_product_prereq_packages: []
+quarkus_product_required_secrets: []
+quarkus_product_required_mounts: []
+quarkus_installer_config_path: /etc/quarkus-installer.conf
+quarkus_product_ports: []
+quarkus_install_deps: false
+quarkus_apply_changes: false
+quarkus_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+quarkus_container_runtime: podman
+quarkus_container_registry: registry.redhat.io

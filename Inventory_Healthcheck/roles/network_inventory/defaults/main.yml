@@ -1,0 +1,33 @@
+---
+network_inventory_target_segments:
+  - "192.168.1.0/24"
+network_inventory_output_dir: "./scan_results"
+
+network_inventory_ssh_user: "root"
+network_inventory_ssh_key: ""
+network_inventory_ssh_password: ""
+network_inventory_use_sshpass: false
+network_inventory_ssh_port: 22
+network_inventory_ssh_connect_timeout: 5
+
+network_inventory_enable_local_audit: true
+network_inventory_enable_xlsx: false
+network_inventory_require_openpyxl: false
+
+network_inventory_discovery_ports:
+  - 80
+  - 22
+network_inventory_scan_ulimit: 5000
+network_inventory_scan_fast_mode: true
+
+network_inventory_required_tools:
+  - zmap
+  - hping3
+  - rustscan
+  - nmap
+  - python3
+  - ssh
+
+network_inventory_report_name_prefix: "comprehensive_report"
+network_inventory_summary_name_prefix: "product_confidence_summary"
+network_inventory_discovered_inventory_name_prefix: "discovered_inventory"

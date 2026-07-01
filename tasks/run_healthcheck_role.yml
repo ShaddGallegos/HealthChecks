@@ -1,0 +1,15 @@
+---
+- name: Set effective execution flags for product
+  ansible.builtin.set_fact:
+    "{{ healthcheck_product }}_install_deps": "{{ not (healthcheck_mode_only | bool) }}"
+    "{{ healthcheck_product }}_apply_changes": "{{ not (healthcheck_mode_only | bool) }}"
+    install_deps: "{{ not (healthcheck_mode_only | bool) }}"
+    apply_changes: "{{ not (healthcheck_mode_only | bool) }}"
+    healthcheck_check_mode_only_effective: "{{ healthcheck_mode_only | bool }}"
+
+- name: Include product role
+  ansible.builtin.include_role:
+    name: "{{ healthcheck_product }}"
+  vars:
+    product_name: "{{ healthcheck_product }}"
+    artifacts_dir: "{{ healthcheck_artifacts_dir | default(lookup('env', 'HOME') + '/.ansible/artifacts') }}"

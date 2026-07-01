@@ -1,0 +1,20 @@
+---
+product: certificate_system
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_certificate_system/10
+hardware_requirements:
+  notes: "Certificate System is a PKI product; sizing depends on CA hierarchy and workload."
+setup_requirements:
+  - "Plan CA hierarchy, HSM integration if used, and secure storage for private keys"
+best_practices:
+  - "Protect private keys and backups; test certificate issuance and revocation workflows"
+scenarios:
+  install:
+    preflight:
+      - "Verify time synchronization and secure storage for key material"
+    postinstall:
+      - "Validate CA issuance and CRL/OCSP publishing"
+  backup:
+    preflight:
+      - "Confirm secure backups of key material and database"
+    postinstall: []

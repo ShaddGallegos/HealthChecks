@@ -1,20 +1,45 @@
 ---
-preflight_admin_user: admin
-preflight_container_rootless: false
-preflight_sudo_group: wheel
-product_repos:
+# ansible-lint: skip_list=var-naming
+satellite_preflight_admin_user: admin
+satellite_preflight_container_rootless: false
+satellite_preflight_sudo_group: wheel
+
+satellite_product_repos:
   - name: satellite-base
     description: Satellite repository
     baseurl: ""
-product_prereq_packages:
+
+satellite_product_prereq_packages:
   - python3
   - python3-venv
   - python3-pip
-product_required_secrets:
+
+satellite_product_required_secrets:
   - admin_password
   - repo_baseurl
   - installer_token
-product_required_mounts:
+
+satellite_product_required_mounts:
   - /var
   - /opt
-installer_config_path: /etc/satellite-installer.conf
+
+satellite_product_ports:
+  - 80
+  - 443
+  - 5647
+  - 8000
+  - 8140
+
+satellite_installer_config_path: /etc/satellite-installer.conf
+
+satellite_install_deps: false
+satellite_apply_changes: false
+satellite_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+
+satellite_container_runtime: podman
+satellite_container_registry: registry.redhat.io
+satellite_validate_platform_certs: false
+satellite_show_help: false

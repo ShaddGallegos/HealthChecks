@@ -1,0 +1,21 @@
+---
+# ansible-lint: skip_list=var-naming
+quay_preflight_admin_user: admin
+quay_preflight_container_rootless: false
+quay_preflight_sudo_group: wheel
+quay_product_repos: []
+quay_product_prereq_packages: []
+quay_product_required_secrets: []
+quay_product_required_mounts: []
+quay_installer_config_path: /etc/quay-installer.conf
+quay_product_ports: []
+quay_install_deps: false
+quay_apply_changes: false
+quay_validate_platform_certs: false
+quay_show_help: false
+quay_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+quay_container_runtime: podman
+quay_container_registry: registry.redhat.io

@@ -1,0 +1,29 @@
+---
+product: amq
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_amq/2021.q4
+hardware_requirements:
+  notes: "Follow broker sizing guidance for memory, CPU, and disk IOPS."
+setup_requirements:
+  - "Guard any persistent storage and filesystem tuning behind `apply_changes`"
+best_practices:
+  - "Test high-availability and failover behavior in a staged environment"
+scenarios:
+  install:
+    preflight:
+      - "Verify persistent storage and network connectivity"
+    postinstall:
+      - "Validate broker clustering and client connectivity"
+  upgrade:
+    preflight:
+      - "Backup broker configurations and message data as appropriate"
+    postinstall:
+      - "Validate broker behavior and message durability"
+  backup:
+    preflight:
+      - "Confirm backup/restore capabilities for broker data"
+    postinstall: []
+  restore:
+    preflight:
+      - "Test restore to ensure message store integrity"
+    postinstall: []

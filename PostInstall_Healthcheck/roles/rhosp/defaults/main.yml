@@ -1,0 +1,22 @@
+---
+rhosp_preflight_admin_user: admin
+rhosp_preflight_container_rootless: false
+rhosp_preflight_sudo_group: wheel
+rhosp_product_repos:
+  - name: rhosp-base
+    description: RHOSP repository
+    baseurl: ""
+rhosp_product_prereq_packages:
+  - python3
+  - python3-venv
+  - python3-pip
+rhosp_product_required_secrets:
+  - admin_password
+  - repo_baseurl
+  - installer_token
+rhosp_product_required_mounts:
+  - /var
+  - /opt
+rhosp_installer_config_path: /etc/rhosp-installer.conf
+rhosp_install_deps: false
+rhosp_apply_changes: false

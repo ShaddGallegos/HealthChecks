@@ -1,0 +1,19 @@
+---
+- name: Build host list CSV for RustScan
+  ansible.builtin.shell: "paste -sd, {{ network_inventory_live_hosts }}"
+  args:
+    executable: /bin/bash
+  register: network_inventory_rust_hosts
+  changed_when: false
+
+- name: Run RustScan against discovered hosts
+  ansible.builtin.command:
+    cmd: "rustscan -a {{ network_inventory_rust_hosts.stdout }} --ulimit {{ network_inventory_scan_ulimit }} -g"
+  register: network_inventory_rustscan_result
+  changed_when: true
+
+- name: Save RustScan output
+  ansible.builtin.copy:
+    dest: "{{ network_inventory_rust_out }}"
+    content: "{{ network_inventory_rustscan_result.stdout }}\n"
+    mode: "0644"

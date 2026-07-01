@@ -1,0 +1,29 @@
+---
+product: ai_inference
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ai_inference_server/3.4
+hardware_requirements:
+  notes: "Follow product docs for recommended GPU/CPU/memory sizing for inference workloads."
+setup_requirements:
+  - "Guard driver installation and kernel module changes behind `apply_changes`."
+best_practices:
+  - "Validate drivers and model runtime on a staging host before production rollout"
+scenarios:
+  install:
+    preflight:
+      - "Verify OS and runtime compatibility for accelerators"
+    postinstall:
+      - "Run inference benchmark tests and validate performance"
+  upgrade:
+    preflight:
+      - "Backup models and configuration"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backups for model artifacts"
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare environment and drivers"
+    postinstall:
+      - "Verify model integrity and runtime after restore"

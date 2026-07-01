@@ -1,0 +1,17 @@
+---
+directory_server_postinstall_admin_user: admin
+directory_server_postinstall_sudo_group: wheel
+directory_server_product_repos: []
+directory_server_product_prereq_packages: []
+directory_server_product_required_secrets: []
+directory_server_product_required_mounts: []
+directory_server_installer_config_path: /etc/directory_server-installer.conf
+directory_server_product_ports: []
+directory_server_install_deps: false
+directory_server_apply_changes: false
+directory_server_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+directory_server_container_runtime: podman
+directory_server_container_registry: registry.redhat.io

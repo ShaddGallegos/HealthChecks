@@ -1,0 +1,17 @@
+---
+product: jboss_webserver
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_jboss_web_server/6.2
+best_practices:
+  - "Guard TLS/private-key installation and webserver tuning behind `apply_changes`"
+  - "Validate connector and load-balancer behavior under production-like load"
+scenarios:
+  install:
+    preflight:
+      - "Ensure TLS certificates and connector configuration are present"
+    postinstall:
+      - "Tune worker threads and connection timeouts based on throughput"
+  upgrade:
+    preflight:
+      - "Backup web server configuration"
+    postinstall: []

@@ -1,0 +1,91 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+---
+# Gitea PostInstall tuning tasks (guarded). Non-destructive unless `gitea_apply_changes` is true.
+
+- name: Ensure prerequisite OS packages are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ gitea_product_prereq_packages | default([]) }}"
+  when: gitea_install_deps | default(false)
+  ignore_errors: "{{ postinstall_ignore_tuning_errors | default(false) }}"
+  register: pkg_install_results
+  tags: prereqs
+
+- name: Ensure product yum/dnf repositories are present
+  ansible.builtin.yum_repository:
+    name: "{{ item.name }}"
+    description: "{{ item.description | default(item.name) }}"
+    baseurl: "{{ item.baseurl }}"
+    enabled: true
+    gpgcheck: "{{ postinstall_repo_gpgcheck | default(true) | bool }}"
+  loop: "{{ gitea_product_repos | default([]) }}"
+  when: gitea_product_repos is defined and gitea_product_repos | length > 0
+  tags: repos
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+  tags: services
+
+- name: Ensure gitea service is enabled and started (guarded)
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ gitea_product_services | default(['gitea']) }}"
+  when: (gitea_apply_changes | default(false)) and not ansible_check_mode
+  tags: services
+  ignore_errors: "{{ postinstall_ignore_tuning_errors | default(false) }}"
+
+- name: Open required firewall ports (guarded)
+  ansible.builtin.firewalld:
+    port: "{{ item.port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop: "{{ gitea_product_ports | default([{'port':3000}]) }}"
+  when: (gitea_apply_changes | default(false)) and not ansible_check_mode
+  tags: firewall
+  ignore_errors: "{{ postinstall_ignore_tuning_errors | default(false) }}"
+
+- name: HTTP check for Gitea UI
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ (gitea_product_ports | default([{'port':3000}]))[0].port }}/"
+    status_code: 200
+    return_content: false
+  register: gitea_http_check
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Collect recent journal entries for Gitea
+  ansible.builtin.shell: journalctl -u {{ item }} -n 500 --no-pager || true
+  register: service_journals
+  failed_when: false
+  changed_when: false
+  loop: "{{ gitea_product_services | default(['gitea']) }}"
+  tags: logs
+
+- name: Write collected journals to artifacts
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name }}-{{ inventory_hostname }}-{{ item }}-journal.log"
+    content: "{{ (service_journals.results[loop.index0].stdout) | default('') }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ gitea_product_services | default(['gitea']) }}"
+  when: artifacts_dir is defined
+  delegate_to: localhost
+  tags: logs
+
+- name: Create Gitea postinstall tuning summary JSON
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name }}-{{ inventory_hostname }}-postinstall-tuning.json"
+    content: "{{ {'product': product_name, 'http_check': gitea_http_check.status | default('unknown'), 'services': gitea_product_services | default(['gitea']) } | to_nice_json }}"
+    owner: root
+    group: root
+    mode: '0644'
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

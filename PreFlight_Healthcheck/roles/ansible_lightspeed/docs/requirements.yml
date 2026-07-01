@@ -1,0 +1,20 @@
+---
+product: ansible_lightspeed
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ansible_lightspeed_with_ibm_watsonx_code_assistant/2.x_latest
+hardware_requirements:
+  notes: "Follow product documentation for runtime and integration requirements."
+setup_requirements:
+  - "Prepare API credentials and integration endpoints as required"
+best_practices:
+  - "Validate integration and access control in a staging environment"
+scenarios:
+  install:
+    preflight:
+      - "Verify API endpoints and credentials"
+    postinstall:
+      - "Validate feature availability and integration responses"
+  upgrade:
+    preflight:
+      - "Read release notes and validate compatibility"
+    postinstall: []

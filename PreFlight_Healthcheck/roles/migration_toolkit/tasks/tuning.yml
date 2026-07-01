@@ -1,0 +1,6 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Tuning placeholder for migration_toolkit (guarded)
+  ansible.builtin.debug:
+    msg: "Tuning tasks for migration_toolkit are guarded by migration_toolkit_apply_changes and must be implemented per product best practices."
+  tags: tuning

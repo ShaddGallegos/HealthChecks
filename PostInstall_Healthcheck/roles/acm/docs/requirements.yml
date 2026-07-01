@@ -1,0 +1,35 @@
+---
+product: acm
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.17
+hardware_requirements:
+  notes: "Operator-based; sizing depends on the number of managed clusters and use-cases. Refer to product docs."
+setup_requirements:
+  - "Ensure OLM/OperatorHub availability and required cluster-scoped permissions"
+  - "Secure credentials for managed cluster registration"
+best_practices:
+  - "Guard any destructive post-install changes behind `apply_changes` and run in staging first"
+  - "Monitor managed cluster health after post-install tuning"
+scenarios:
+  install:
+    preflight:
+      - "Verify OpenShift and OLM readiness"
+    postinstall:
+      - "Check managed cluster registration and policy propagation"
+  upgrade:
+    preflight:
+      - "Backup operator state where applicable"
+    postinstall:
+      - "Validate CRDs and operator health after upgrade"
+  migrate:
+    preflight:
+      - "Plan for policy and resource migration for managed clusters"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup strategy for ACM resources"
+    postinstall: []
+  restore:
+    preflight:
+      - "Test restore procedures in non-production environments"
+    postinstall: []

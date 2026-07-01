@@ -1,0 +1,17 @@
+---
+product: apache_camel
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_build_of_apache_camel/4.18
+best_practices:
+  - "Guard JVM tuning and kernel limits behind `apply_changes`"
+  - "Monitor application throughput and tune memory/threads accordingly"
+scenarios:
+  install:
+    preflight:
+      - "Verify JVM and runtime dependencies"
+    postinstall:
+      - "Tune heap and GC after measuring production workload"
+  upgrade:
+    preflight:
+      - "Test compatibility in staging"
+    postinstall: []

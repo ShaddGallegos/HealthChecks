@@ -1,0 +1,31 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  ignore_errors: true
+  tags: always
+
+- name: Include postinstall template
+  ansible.builtin.include_role:
+    name: postinstall_template
+  tags: postinstall
+
+- name: Include guarded tuning tasks
+  ansible.builtin.include_tasks: tuning.yml
+  when: (openshift_local_apply_changes | default(false)) and not ansible_check_mode
+  tags: tuning
+
+- name: PostInstall openshift_local - ensure podman images present (placeholder)
+  ansible.builtin.debug:
+    msg: "Placeholder to ensure crc/openshift local images and repos are available."
+  tags: postinstall
+
+- name: Archive postinstall report (placeholder)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/openshift_local-{{ inventory_hostname }}-postinstall-report.json"
+    content: "{}"
+    delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

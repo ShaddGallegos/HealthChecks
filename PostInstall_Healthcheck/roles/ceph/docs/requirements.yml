@@ -1,0 +1,17 @@
+---
+product: ceph
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ceph_storage/9
+best_practices:
+  - "Guard any storage tuning and filesystem changes behind `apply_changes`"
+  - "Test performance and failure scenarios in a staging environment"
+scenarios:
+  install:
+    preflight:
+      - "Verify OSD disk health and partitioning"
+    postinstall:
+      - "Tune CRUSH maps and replication factors as required"
+  backup:
+    preflight:
+      - "Ensure backup strategy for metadata and critical configuration"
+    postinstall: []

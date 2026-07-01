@@ -1,0 +1,17 @@
+---
+migration_toolkit_postinstall_admin_user: admin
+migration_toolkit_postinstall_sudo_group: wheel
+migration_toolkit_product_repos: []
+migration_toolkit_product_prereq_packages: []
+migration_toolkit_product_required_secrets: []
+migration_toolkit_product_required_mounts: []
+migration_toolkit_installer_config_path: /etc/migration_toolkit-installer.conf
+migration_toolkit_product_ports: []
+migration_toolkit_install_deps: false
+migration_toolkit_apply_changes: false
+migration_toolkit_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+migration_toolkit_container_runtime: podman
+migration_toolkit_container_registry: registry.redhat.io

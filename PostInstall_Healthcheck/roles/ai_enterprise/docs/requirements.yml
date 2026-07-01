@@ -1,0 +1,26 @@
+---
+product: ai_enterprise
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ai_enterprise/3
+hardware_requirements:
+  notes: "Refer to product docs for accelerator, memory, and storage sizing guidance."
+setup_requirements:
+  - "Install and validate GPU drivers and runtimes where required"
+best_practices:
+  - "Guard tuning and driver installation behind `apply_changes` and document changes"
+  - "Test model performance and correctness after any post-install tuning"
+scenarios:
+  install:
+    preflight:
+      - "Verify driver/runtime compatibility and OS support"
+    postinstall:
+      - "Validate model deployment and inference pipelines"
+  backup:
+    preflight:
+      - "Confirm backup/archival of model artifacts and metadata"
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare target environment with matching drivers"
+    postinstall:
+      - "Verify restored models function as expected"

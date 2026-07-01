@@ -1,0 +1,17 @@
+---
+jboss_webserver_postinstall_admin_user: admin
+jboss_webserver_postinstall_sudo_group: wheel
+jboss_webserver_product_repos: []
+jboss_webserver_product_prereq_packages: []
+jboss_webserver_product_required_secrets: []
+jboss_webserver_product_required_mounts: []
+jboss_webserver_installer_config_path: /etc/jboss_webserver-installer.conf
+jboss_webserver_product_ports: []
+jboss_webserver_install_deps: false
+jboss_webserver_apply_changes: false
+jboss_webserver_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+jboss_webserver_container_runtime: podman
+jboss_webserver_container_registry: registry.redhat.io

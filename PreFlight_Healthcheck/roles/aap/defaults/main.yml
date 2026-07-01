@@ -1,20 +1,21 @@
 ---
-preflight_admin_user: admin
-preflight_container_rootless: false
-preflight_sudo_group: wheel
-product_repos:
+# ansible-lint: skip_list=var-naming
+aap_preflight_admin_user: admin
+aap_preflight_container_rootless: false
+aap_preflight_sudo_group: wheel
+aap_product_repos:
   - name: aap-base
     description: AAP repository
     baseurl: ""
-product_prereq_packages:
+aap_product_prereq_packages:
   - python3
   - python3-venv
   - python3-pip
-product_required_secrets:
+aap_product_required_secrets:
   - admin_password
   - repo_baseurl
   - installer_token
-product_required_mounts:
+aap_product_required_mounts:
   - /var
   - /opt
-installer_config_path: /etc/aap-installer.conf
+aap_installer_config_path: /etc/aap-installer.conf

@@ -1,0 +1,89 @@
+---
+aap_preflight_admin_user: admin
+aap_preflight_container_rootless: false
+aap_preflight_sudo_group: wheel
+aap_product_repos:
+  - name: aap-base
+    description: AAP repository
+    baseurl: ""
+aap_product_prereq_packages:
+  - python3
+  - python3-venv
+  - python3-pip
+aap_product_required_secrets:
+  - admin_password
+  - repo_baseurl
+  - installer_token
+aap_product_required_mounts:
+  - /var
+  - /opt
+aap_installer_config_path: /etc/aap-installer.conf
+
+# AAP tuning defaults (imported from HealthChecks/AAP_Healthcheck/vars.yml)
+# Note: destructive/tuning toggles default to false for safety in healthchecks
+aap_max_open_files: 65536
+aap_max_process_limits: 32768
+aap_sysctl_memory_overcommit: 1
+aap_system_tuned_profile: "throughput-performance"
+
+# Tuning toggles - default to false to keep checks non-destructive
+aap_tune_system_limits: false
+aap_disable_transparent_hugepages: false
+aap_apply_kernel_memory_tweaks: false
+aap_apply_tuned_profile: false
+
+# Benchmarking (disabled by default)
+aap_run_benchmarks: false
+
+# Ports to verify for AAP by default
+aap_product_ports:
+  - port: 80
+    proto: 'tcp'
+    desc: 'Platform HTTP Gateway / Redirect'
+  - port: 443
+    proto: 'tcp'
+    desc: 'Platform HTTPS Gateway (Controller/Hub/EDA Unified Console)'
+  - port: 5432
+    proto: 'tcp'
+    desc: 'PostgreSQL Datastore Layer Socket'
+  - port: 6379
+    proto: 'tcp'
+    desc: 'Redis Cache Internal Messaging Bus'
+  - port: 7899
+    proto: 'tcp'
+    desc: 'Receptor Mesh Inter-Node Link Socket'
+
+# Services to manage when apply_changes is enabled
+aap_product_services: []
+
+# Control flags (role-level)
+aap_install_deps: false
+aap_apply_changes: false
+
+# Misc
+aap_validate_platform_certs: false
+aap_show_help: false
+
+# AAP database reporting (managed node and event export)
+aap_db_reporting_enabled: false
+aap_db_reporting_output_dir: "{{ playbook_dir }}/artifacts/aap_db_reporting"
+aap_db_reporting_job_events_limit: 500000
+aap_db_reporting_required_tools:
+  - awx-manage
+
+# Schema/table detection and overrides
+aap_db_reporting_autodetect_tables: true
+aap_db_reporting_host_table_override: ""
+aap_db_reporting_jobevent_table_override: ""
+aap_db_reporting_host_table_candidates:
+  - main_host
+  - host
+aap_db_reporting_jobevent_table_candidates:
+  - main_jobevent
+  - job_event
+
+# Optional analytics collection (best effort)
+aap_db_reporting_analytics_enabled: false
+aap_db_reporting_analytics_command: "awx-manage gather_analytics"
+aap_db_reporting_analytics_output_file: "{{ aap_db_reporting_output_dir }}/analytics_capture.log"
+aap_db_reporting_analytics_fail_on_error: false

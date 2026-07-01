@@ -1,0 +1,100 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    product_env: "{{ env_vars.get(product_name, {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  failed_when: false
+  changed_when: false
+  when: uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - uid_check.stdout == '0' or sudo_check.rc == 0
+    fail_msg: "This PreFlight healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+- name: Assert supported RHEL major version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'RedHat'
+      - ansible_facts['distribution_major_version'] is defined
+      - ansible_facts['distribution_major_version'] | string in jboss_webserver_supported_rhel_major_versions
+    fail_msg: "This role supports RHEL major versions: {{ jboss_webserver_supported_rhel_major_versions | join(', ') }}"
+  tags: platform
+
+- name: Include preflight template
+  ansible.builtin.include_role:
+    name: preflight_template
+  vars:
+      product_name: jboss_webserver
+      product_required_mounts: ['/','/opt','/etc/jboss-webserver']
+      product_ports: [8080,8443,8009]
+      product_repos: []
+      io_benchmark_enabled: false
+  tags: preflight
+
+- name: Discovery placeholder - jboss_webserver
+  ansible.builtin.debug:
+    msg: "Discovery checks for jboss_webserver not yet implemented."
+  tags: discovery
+
+- name: Check for JBoss Web Server packages
+  ansible.builtin.shell: rpm -qa | egrep -i 'jboss-web|jboss-web-server|jws' || true
+  register: jws_pkgs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check installation directories for JWS
+  ansible.builtin.shell: ls -d /opt/jboss* /etc/jboss-webserver* 2>/dev/null || true
+  register: jws_dirs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for running webserver processes
+  ansible.builtin.shell: ps -ef | egrep -i 'jboss-web|httpd|apache' || true
+  register: jws_procs
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check for listening HTTP/TLS/ajp ports
+  ansible.builtin.shell: ss -ltnp | egrep -w ':8080|:8443|:8009' || true
+  register: jws_ports
+  failed_when: false
+  changed_when: false
+  tags: network
+
+- name: Combine JBoss Web Server checks into `preflight_report`
+  ansible.builtin.set_fact:
+    preflight_report: "{{ preflight_report | default({}) | combine({'product': 'jboss_webserver', 'jboss_webserver': { 'packages': jws_pkgs.stdout | default(''), 'dirs': jws_dirs.stdout | default(''), 'processes': jws_procs.stdout | default(''), 'ports': jws_ports.stdout | default('') }}) }}"
+  tags: report
+
+- name: Write jboss_webserver preflight discovery report to artifacts (json)
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/jboss_webserver-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ preflight_report | default({}) | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

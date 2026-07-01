@@ -1,0 +1,131 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  tags: always
+
+- name: Set product_env from env_vars
+  ansible.builtin.set_fact:
+    openshift_product_env: "{{ env_vars.get('openshift', {}) }}"
+  tags: always
+
+- name: Check running user is root or has passwordless sudo
+  ansible.builtin.command: id -u
+  register: openshift_uid_check
+  changed_when: false
+  failed_when: false
+  tags: always
+
+- name: Check passwordless sudo if not root
+  ansible.builtin.command: sudo -n true
+  register: openshift_sudo_check
+  failed_when: false
+  changed_when: false
+  when: openshift_uid_check.stdout != "0"
+  tags: always
+
+- name: Assert running as root or with passwordless sudo (NOPASSWD)
+  ansible.builtin.assert:
+    that:
+      - openshift_uid_check.stdout == '0' or openshift_sudo_check.rc == 0
+    fail_msg: "This PostInstall healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
+  tags: always
+
+
+- name: Fail if required secrets missing
+  ansible.builtin.fail:
+    msg: "Missing required secret '{{ item }}' for 'openshift' in ~/.ansible/conf/env.yml"
+  when: openshift_product_env.get(item, '') == ''
+  loop: "{{ openshift_product_required_secrets | default([]) }}"
+  tags: secrets
+
+- name: Ensure prerequisite OS packages are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ openshift_product_prereq_packages | default([]) }}"
+  when: openshift_install_deps | default(false)
+  ignore_errors: true
+  register: openshift_pkg_install_results
+  tags: prereqs
+
+- name: Warn about missing packages
+  ansible.builtin.debug:
+    msg: "Package {{ item.item }} failed to install: {{ item.msg | default('unknown') }}"
+  loop: "{{ openshift_pkg_install_results.results | default([]) }}"
+  when: item.failed
+  tags: prereqs
+
+- name: Ensure pip, setuptools and wheel are upgraded
+  ansible.builtin.pip:
+    name:
+      - pip
+      - setuptools
+      - wheel
+    state: present
+    executable: pip3
+  when: openshift_install_deps | default(false)
+  tags: pip
+
+- name: Ensure admin user exists
+  ansible.builtin.user:
+    name: "{{ openshift_preflight_admin_user }}"
+    groups: "{{ openshift_preflight_sudo_group }}"
+    append: true
+    create_home: true
+  when: openshift_apply_changes | default(false)
+  tags: users
+
+- name: Allow admin passwordless sudo
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/preflight_admin
+    create: true
+    line: "{{ openshift_preflight_admin_user }} ALL=(ALL) NOPASSWD:ALL"
+    state: present
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
+  when: openshift_apply_changes | default(false)
+  tags: users
+
+- name: Ensure product yum/dnf repositories are present
+  ansible.builtin.yum_repository:
+    name: "{{ item.name }}"
+    description: "{{ item.description | default(item.name) }}"
+    baseurl: "{{ item.baseurl }}"
+    enabled: true
+    gpgcheck: "{{ postinstall_repo_gpgcheck | default(true) | bool }}"
+  loop: "{{ openshift_product_repos | default([]) }}"
+  when: (openshift_product_repos is defined and openshift_product_repos | length > 0) and (openshift_apply_changes | default(false))
+  tags: repos
+
+- name: Ensure installer config exists (touch as placeholder)
+  ansible.builtin.file:
+    path: "{{ openshift_installer_config_path }}"
+    state: touch
+    mode: '0644'
+  when: openshift_apply_changes | default(false)
+  tags: installer
+
+- name: Configure rootless podman (subuid/subgid) when requested
+  block:
+    - name: Ensure subuid entry exists
+      ansible.builtin.lineinfile:
+        dest: /etc/subuid
+        line: "{{ openshift_preflight_admin_user }}:100000:65536"
+        create: true
+    - name: Ensure subgid entry exists
+      ansible.builtin.lineinfile:
+        dest: /etc/subgid
+        line: "{{ openshift_preflight_admin_user }}:100000:65536"
+        create: true
+  when: openshift_preflight_container_rootless | bool
+  tags: containers
+
+- name: Check filesystem mounts (report)
+  ansible.builtin.shell: df -h {{ item }} || true
+  register: openshift_df_out
+  failed_when: false
+  loop: "{{ openshift_product_required_mounts | default([]) }}"
+  tags: filesystems

@@ -1,0 +1,21 @@
+---
+product: three_scale
+source_urls:
+  - https://access.redhat.com/documentation/en-us/red_hat_3scale_api_management
+best_practices:
+  - "Guard database and storage tuning behind `apply_changes` and validate in staging"
+  - "Test gateway throughput and scale settings before production rollout"
+scenarios:
+  install:
+    preflight:
+      - "Confirm DB connection strings and credentials"
+    postinstall:
+      - "Configure caching and tune gateway memory/threads when `apply_changes` is true"
+  upgrade:
+    preflight:
+      - "Backup portal data and gateway config"
+    postinstall: []
+  backup:
+    preflight:
+      - "Validate DB and artifact backup strategies"
+    postinstall: []

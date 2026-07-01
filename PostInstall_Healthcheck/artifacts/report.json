@@ -1,0 +1,91 @@
+{
+  "generated_at": "2026-06-30T20:55:45.180715Z",
+  "summary": {
+    "rpm_packages": {
+      "added": 1,
+      "removed": 1
+    },
+    "enabled_services": {
+      "added": 1,
+      "removed": 0
+    },
+    "running_services": {
+      "added": 1,
+      "removed": 0
+    },
+    "listening_tcp": {
+      "added": 1,
+      "removed": 1
+    },
+    "listening_udp": {
+      "added": 0,
+      "removed": 0
+    },
+    "users": {
+      "added": 1,
+      "removed": 0
+    },
+    "groups": {
+      "added": 1,
+      "removed": 0
+    },
+    "sudoers": {
+      "changed": true
+    },
+    "firewall": {
+      "changed": true
+    },
+    "selinux": {
+      "changed": false
+    }
+  },
+  "details": {
+    "rpm_packages": {
+      "added": [
+        "pkgC-3.0"
+      ],
+      "removed": [
+        "pkgB-2.0"
+      ]
+    },
+    "enabled_services": {
+      "added": [
+        "mcp-bridge.service"
+      ],
+      "removed": []
+    },
+    "running_services": {
+      "added": [
+        "mcp-bridge.service"
+      ],
+      "removed": []
+    },
+    "listening_tcp": {
+      "added": [
+        "0.0.0.0:1776"
+      ],
+      "removed": [
+        "127.0.0.1:11434"
+      ]
+    },
+    "listening_udp": {
+      "added": [],
+      "removed": []
+    },
+    "users": {
+      "added": [
+        "mcpuser:x:1001:1001:MCP:/home/mcpuser:/bin/bash"
+      ],
+      "removed": []
+    },
+    "groups": {
+      "added": [
+        "mcpgroup:x:1001:"
+      ],
+      "removed": []
+    },
+    "sudoers": "--- before_sudoers\n+++ after_sudoers\n@@ -1 +1,2 @@\n root ALL=(ALL) ALL\n+admin ALL=(ALL) NOPASSWD:ALL\n",
+    "firewall": "--- before_firewall\n+++ after_firewall\n@@ -1 +1 @@\n-No active firewall (sample)+Added rich rule for mcp-bridge\n",
+    "selinux": ""
+  }
+}

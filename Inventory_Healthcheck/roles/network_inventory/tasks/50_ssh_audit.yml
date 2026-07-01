@@ -1,0 +1,44 @@
+---
+- name: Run optional authenticated SSH local audits
+  ansible.builtin.shell: |
+    set -euo pipefail
+    SSH_BASE_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout={{ network_inventory_ssh_connect_timeout }} -o BatchMode=yes -p {{ network_inventory_ssh_port }}"
+
+    if [ "{{ network_inventory_use_sshpass | bool }}" = "True" ] && [ -n "{{ network_inventory_ssh_password }}" ]; then
+      AUTH_PREFIX="sshpass -p '{{ network_inventory_ssh_password | replace("'", "'\\''") }}'"
+    else
+      AUTH_PREFIX=""
+    fi
+
+          echo product_markers::\$({ rpm -qa 2>/dev/null | grep -Ei "openshift|ansible|satellite|katello|insights-client|jboss|wildfly|amq|activemq|artemis|3scale|infinispan|quarkus|camel|keycloak|389-ds|dirsrv|pki|dogtag|ceph|quay|openstack|rhosp|rhacm|rhacs|stackrox|rhdh|mtv|mta|tackle|device-edge" || true; pgrep -af "openshift|kube|ansible|awx|automation-controller|satellite|katello|jboss|wildfly|amq|keycloak|quay|ceph|openstack|stackrox|acm|mtv" || true; } | tr "\\n" ";" | sed "s/;\\+$//"); \
+    if [ -n "{{ network_inventory_ssh_key }}" ]; then
+      SSH_BASE_OPTS="$SSH_BASE_OPTS -i {{ network_inventory_ssh_key }}"
+    fi
+
+    while read -r ip; do
+      if grep -Eq "^${ip} -> .*\[.*22.*\]" "{{ network_inventory_rust_out }}"; then
+        eval $AUTH_PREFIX ssh $SSH_BASE_OPTS "{{ network_inventory_ssh_user }}@${ip}" "bash -lc 'set -e; \
+          echo ===AUDIT_START===; \
+          echo hostname::\$(hostname); \
+          echo kernel::\$(uname -r); \
+          echo virt_type::\$(virt-what 2>/dev/null | head -n 1 || echo Physical/Unknown); \
+          echo rh_release::\$(rpm -q --queryformat %{VERSION} --whatprovides redhat-release 2>/dev/null || echo Non-RHEL); \
+          echo cpu_cores::\$(grep ^cpu\ cores /proc/cpuinfo 2>/dev/null | sed -n \"s/^.*:\\\\s*//p\" | uniq); \
+          echo cpu_count::\$(grep ^processor /proc/cpuinfo 2>/dev/null | wc -l); \
+          echo cpu_model::\$(grep ^model\ name /proc/cpuinfo 2>/dev/null | sed -n \"s/^.*:\\\\s*//p\" | uniq); \
+          echo pkg_count::\$(rpm -qa | wc -l); \
+          if [ -d /etc/rhsm/facts ]; then \
+            echo subman_status::\$(LANG=C subscription-manager status 2>/dev/null | grep -e Overall\ Status: | cut -d : -f2 | xargs || echo Unregistered); \
+            echo subman_skus::\$(subscription-manager list --consumed 2>/dev/null | grep -e ^SKU -e ^Subscription\ Name | sed -e \"s/SKU\\s*:\\s*//g\" -e \"s/Subscription\ Name\\s*:\\s*//g\" | paste -d \" \" - - | tr \"\\n\" \";\"); \
+          else \
+            echo subman_status::Not\ Installed; \
+            echo subman_skus::None; \
+          fi; \
+          echo jboss_proc_count::\$(pgrep -af jboss 2>/dev/null | grep -v grep | wc -l); \
+          echo jboss_detected_versions::\$(find / /opt /app /eap -xdev -name jboss-modules.jar 2>/dev/null | while read -r jar; do java -jar \"\$jar\" -version 2>/dev/null | grep version | sed \"s/.*version\\s//g\"; done | tr \"\\n\" \";\" || true); \
+          echo ===AUDIT_END===;'" 2>/dev/null > "{{ network_inventory_local_audit_dir }}/${ip}.facts" || true
+      fi
+    done < "{{ network_inventory_live_hosts }}"
+  args:
+    executable: /bin/bash
+  changed_when: true

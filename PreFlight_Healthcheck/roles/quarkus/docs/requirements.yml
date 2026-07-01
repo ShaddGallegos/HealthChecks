@@ -1,0 +1,21 @@
+---
+product: quarkus
+source_urls:
+  - https://quarkus.io/guides/
+hardware_requirements:
+  notes: "Quarkus applications run on the JVM or as native images; size according to runtime and expected concurrency."
+setup_requirements:
+  - "Ensure supported JDK and build tools (Maven/Gradle) are available for builds"
+  - "Plan container builder/runtime (JVM vs native) and resource limits"
+best_practices:
+  - "Use container resource requests/limits and readiness/liveness probes for Java apps"
+scenarios:
+  install:
+    preflight:
+      - "Check JDK and build tooling availability on CI/build hosts"
+    postinstall:
+      - "Validate application startup, readiness probes, and memory usage"
+  upgrade:
+    preflight:
+      - "Test application compatibility with updated runtime or libraries"
+    postinstall: []

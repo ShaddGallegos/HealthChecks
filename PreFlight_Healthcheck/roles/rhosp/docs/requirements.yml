@@ -1,0 +1,34 @@
+---
+product: rhosp
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_openstack_platform
+hardware_requirements:
+  notes: "RHOSP requires careful sizing for control plane, compute, and storage nodes; follow official capacity planning documents."
+setup_requirements:
+  - "Plan network topology (MTU, VLANs), DNS, and firewall rules"
+  - "Ensure time synchronization (NTP/chrony) across control and compute nodes"
+  - "Prepare storage backends (Ceph or external block/object storage) and verify IOPS/latency"
+best_practices:
+  - "Validate network MTU and jumbo frames for storage clusters where applicable"
+  - "Test backups and disaster recovery of undercloud/overcloud configurations"
+scenarios:
+  install:
+    preflight:
+      - "Verify node hardware meets control/compute/storage role requirements"
+      - "Validate required ports and firewall rules per the product reference"
+      - "Confirm storage performance and availability for block/object volumes"
+    postinstall:
+      - "Validate control plane services, compute node registration, and storage integration"
+  upgrade:
+    preflight:
+      - "Back up undercloud and overcloud configurations and verify restore procedures"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup processes for control plane and critical databases"
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare target environment and verify compatibility of storage backends"
+    postinstall:
+      - "Validate instance and storage integrity after restore"

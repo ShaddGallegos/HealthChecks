@@ -1,0 +1,17 @@
+---
+ai_enterprise_postinstall_admin_user: admin
+ai_enterprise_postinstall_sudo_group: wheel
+ai_enterprise_product_repos: []
+ai_enterprise_product_prereq_packages: []
+ai_enterprise_product_required_secrets: []
+ai_enterprise_product_required_mounts: []
+ai_enterprise_installer_config_path: /etc/ai_enterprise-installer.conf
+ai_enterprise_product_ports: []
+ai_enterprise_install_deps: false
+ai_enterprise_apply_changes: false
+ai_enterprise_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+ai_enterprise_container_runtime: podman
+ai_enterprise_container_registry: registry.redhat.io

@@ -1,0 +1,25 @@
+---
+product: developer_hub
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.10
+hardware_requirements:
+  notes: "Runs on OpenShift; follow operator/Helm sizing guidance in product docs."
+os_requirements:
+  notes: "Validated on Red Hat OpenShift Container Platform; check operator requirements."
+setup_requirements:
+  - "Install operator or Helm chart per product docs"
+  - "Ensure access to OpenShift cluster and required namespaces"
+best_practices:
+  - "Validate integrations (Git providers, CI/CD, artifact stores) in staging"
+  - "Keep least-privilege credentials for external integrations"
+scenarios:
+  install:
+    preflight:
+      - "Verify OpenShift cluster meets operator resource and quota requirements"
+      - "Confirm API credentials and routes are reachable"
+    postinstall:
+      - "Validate sample catalog items and pipelines"
+  upgrade:
+    preflight:
+      - "Backup custom configurations and test upgrades in staging"
+    postinstall: []

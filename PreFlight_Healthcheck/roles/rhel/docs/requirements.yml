@@ -1,0 +1,55 @@
+---
+product: rhel
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9
+  - https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8
+  - https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10
+hardware_requirements:
+  notes: "RHEL is the base OS. Hardware sizing depends on downstream workloads; consult specific product guides for CPU, memory, and disk sizing."
+os_requirements:
+  supported_majors: ['8','9','10']
+  notes: "Ensure kernel, module, and package sets meet product-specific requirements."
+setup_requirements:
+  - "Register system with Red Hat Subscription Manager or provide mirrored repositories"
+  - "Configure NTP/chrony and verify time synchronization"
+  - "Ensure DNS resolution and stable hostnames"
+  - "Install container runtime (podman) when required by targeted products"
+best_practices:
+  - "Keep SELinux Enforcing unless product docs require otherwise"
+  - "Maintain consistent package and kernel versions across clusters"
+  - "Guard kernel or package changes behind `apply_changes` and test in staging"
+scenarios:
+  install:
+    preflight:
+      - "Verify RHEL major version is supported (8/9/10)"
+      - "Verify subscription-manager registration and repository accessibility"
+      - "Check NTP/chrony is running and synchronized"
+      - "Check SELinux status and basic firewall rules"
+      - "Verify available disk space and inodes"
+    postinstall:
+      - "Apply recommended tuned profiles and sysctl settings when `apply_changes` is true"
+  upgrade:
+    preflight:
+      - "Ensure backups and snapshots are taken prior to upgrade"
+    postinstall:
+      - "Reconcile kernel and package differences and re-run validation checks"
+  update:
+    preflight:
+      - "Verify patch compatibility and known issues for target packages"
+    postinstall: []
+  migrate:
+    preflight:
+      - "Inventory installed packages and kernel modules for migration planning"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup destinations and retention policies"
+    postinstall: []
+  snapshot:
+    preflight: []
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare target system to match source OS major and relevant packages"
+    postinstall:
+      - "Validate restored system state and re-run discovery checks"

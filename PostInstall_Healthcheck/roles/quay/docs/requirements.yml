@@ -1,0 +1,17 @@
+---
+product: quay
+source_urls:
+  - https://docs.quay.io
+best_practices:
+  - "Guard storage and TLS certificate changes behind `apply_changes`"
+  - "Test registry push/pull and cleanup policies in staging"
+scenarios:
+  install:
+    preflight:
+      - "Confirm storage mount and IOPS requirements"
+    postinstall:
+      - "Validate repository replication and access controls"
+  backup:
+    preflight:
+      - "Confirm backup/restore of repository metadata and storage"
+    postinstall: []

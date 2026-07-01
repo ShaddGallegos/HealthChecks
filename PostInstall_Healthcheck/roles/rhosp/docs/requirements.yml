@@ -1,0 +1,27 @@
+---
+product: rhosp
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_openstack_platform
+best_practices:
+  - "Guard network and storage tuning behind `apply_changes` and maintenance windows"
+  - "Run integration testing for control plane and compute after changes"
+scenarios:
+  install:
+    preflight:
+      - "Confirm network and storage prerequisites are satisfied"
+    postinstall:
+      - "Apply tuning for network, storage, and compute scheduling as needed when `apply_changes` is true"
+  upgrade:
+    preflight:
+      - "Backup critical configs and verify upgrade path"
+    postinstall:
+      - "Validate service versions and re-run functional tests"
+  backup:
+    preflight:
+      - "Validate backup/restore of undercloud and control plane databases"
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare target storage and network topology"
+    postinstall:
+      - "Validate instances and storage after restore"

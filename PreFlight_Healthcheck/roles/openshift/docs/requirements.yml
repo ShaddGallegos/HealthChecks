@@ -1,0 +1,25 @@
+---
+product: openshift
+source_urls:
+  - https://docs.openshift.com/container-platform/latest/
+hardware_requirements:
+  notes: "OpenShift requires control plane and worker node sizing for CPU, memory, and storage; follow official capacity planning guides."
+os_requirements:
+  notes: "Use supported OS images (RHCOS) for control-plane and RHEL for nodes when required; adhere to supported versions in product docs."
+setup_requirements:
+  - "Ensure container runtime (CRI-O) and required kernel modules are present on hosts"
+  - "Plan DNS, NTP, storage classes, and network MTU prior to installation"
+best_practices:
+  - "Validate host prerequisites and apply recommended sysctl settings"
+  - "Use separate networks or NICs for cluster and storage traffic where possible"
+scenarios:
+  install:
+    preflight:
+      - "Check CPU, memory, disk, and network MTU requirements"
+      - "Verify required ports, DNS resolution, and SELinux mode"
+    postinstall:
+      - "Validate cluster operators, node readiness, and storage classes"
+  upgrade:
+    preflight:
+      - "Snapshot etcd and backup cluster state before major upgrades"
+    postinstall: []

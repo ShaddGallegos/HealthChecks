@@ -1,0 +1,33 @@
+---
+product: amq
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_amq/2021.q4
+hardware_requirements:
+  notes: "AMQ components (Brokers) have memory and I/O requirements; consult product docs for broker sizing."
+os_requirements:
+  notes: "AMQ can run on OpenShift or on RHEL; check supported deployment guides."
+setup_requirements:
+  - "Prepare persistent storage for broker data and configure appropriate IOPS"
+  - "Ensure required ports and network policies allow broker and client communication"
+best_practices:
+  - "Use persistent volumes with appropriate IOPS for durable messaging workloads"
+scenarios:
+  install:
+    preflight:
+      - "Verify storage and IOPS meet broker requirements"
+      - "Verify network connectivity and firewall rules"
+    postinstall:
+      - "Validate broker clustering and message persistence"
+  upgrade:
+    preflight:
+      - "Ensure backups of message stores and configurations"
+    postinstall:
+      - "Validate cluster stability and message integrity"
+  backup:
+    preflight:
+      - "Confirm backup strategy for broker data and configurations"
+    postinstall: []
+  restore:
+    preflight:
+      - "Test restore procedures in a staging environment"
+    postinstall: []

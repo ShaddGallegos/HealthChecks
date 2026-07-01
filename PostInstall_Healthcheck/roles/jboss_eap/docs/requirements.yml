@@ -1,0 +1,17 @@
+---
+product: jboss_eap
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_jboss_enterprise_application_platform/8.1
+best_practices:
+  - "Guard JVM and OS-level tuning behind `apply_changes` and document changes"
+  - "Apply configuration changes in staging before production"
+scenarios:
+  install:
+    preflight:
+      - "Confirm JVM tuning parameters and ulimit settings"
+    postinstall:
+      - "Tune heap/G1/GC and file descriptors based on observed workload"
+  upgrade:
+    preflight:
+      - "Backup domain/standalone configurations"
+    postinstall: []

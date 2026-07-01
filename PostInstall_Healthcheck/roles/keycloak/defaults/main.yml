@@ -1,0 +1,17 @@
+---
+keycloak_postinstall_admin_user: admin
+keycloak_postinstall_sudo_group: wheel
+keycloak_product_repos: []
+keycloak_product_prereq_packages: []
+keycloak_product_required_secrets: []
+keycloak_product_required_mounts: []
+keycloak_installer_config_path: /etc/keycloak-installer.conf
+keycloak_product_ports: []
+keycloak_install_deps: false
+keycloak_apply_changes: false
+keycloak_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+keycloak_container_runtime: podman
+keycloak_container_registry: registry.redhat.io

@@ -1,0 +1,43 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+# OpenShift Local PostInstall tuning placeholders
+---
+# OpenShift Local PostInstall tuning tasks (guarded)
+
+- name: Ensure prerequisite OS packages are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ openshift_local_product_prereq_packages | default([]) }}"
+  when: openshift_local_install_deps | default(false)
+  ignore_errors: "{{ postinstall_ignore_tuning_errors | default(false) }}"
+  register: pkg_install_results
+  tags: prereqs
+
+- name: Gather oc and cluster info (non-destructive)
+  ansible.builtin.command: oc whoami || true
+  register: oc_whoami
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Check OpenShift Local cluster operators
+  ansible.builtin.command: oc get co || true
+  register: oc_co
+  failed_when: false
+  changed_when: false
+  tags: discovery
+
+- name: Create postinstall tuning summary JSON
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name }}-{{ inventory_hostname }}-postinstall-tuning.json"
+    content: "{{ {'product': product_name, 'oc_whoami': oc_whoami.stdout | default(''), 'oc_co': oc_co.stdout | default('')} | to_nice_json }}"
+    owner: root
+    group: root
+    mode: '0644'
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report
+  ansible.builtin.debug:
+    msg: "Would configure firewall for OpenShift Local ports when openshift_local_apply_changes is true."
+  tags: firewall

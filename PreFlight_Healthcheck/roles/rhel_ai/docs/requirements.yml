@@ -1,0 +1,35 @@
+---
+product: rhel_ai
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9
+  - https://docs.redhat.com/en/documentation/red_hat_ai_enterprise/3
+hardware_requirements:
+  notes: "AI workloads commonly require accelerators (GPUs/TPUs), large memory, and fast local storage. Follow vendor and product sizing guides."
+setup_requirements:
+  - "Validate presence and compatibility of accelerator hardware (lspci)"
+  - "Ensure kernel headers and build tools are available for driver installation"
+  - "Install container runtime (podman) and verify image pull from registry.redhat.io if needed"
+best_practices:
+  - "Guard driver and kernel module installs behind `apply_changes` and perform in maintenance windows"
+  - "Use validated driver/runtime combinations from product docs"
+scenarios:
+  install:
+    preflight:
+      - "Detect presence of accelerators (e.g., NVIDIA GPUs) and verify vendor/model"
+      - "Check for existing drivers/runtimes (nvidia-smi, /usr/bin/podman)"
+      - "Verify kernel version and headers are available"
+    postinstall:
+      - "Install/validate drivers and runtimes when `apply_changes` is true"
+  upgrade:
+    preflight:
+      - "Ensure backup of models and runtime configs before upgrading drivers or kernels"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm model artifact backup locations and access"
+    postinstall: []
+  restore:
+    preflight:
+      - "Ensure target system has matching drivers and runtimes"
+    postinstall:
+      - "Validate model inference and benchmarks after restore"

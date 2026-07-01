@@ -1,0 +1,17 @@
+---
+jboss_eap_postinstall_admin_user: admin
+jboss_eap_postinstall_sudo_group: wheel
+jboss_eap_product_repos: []
+jboss_eap_product_prereq_packages: []
+jboss_eap_product_required_secrets: []
+jboss_eap_product_required_mounts: []
+jboss_eap_installer_config_path: /etc/jboss_eap-installer.conf
+jboss_eap_product_ports: []
+jboss_eap_install_deps: false
+jboss_eap_apply_changes: false
+jboss_eap_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+jboss_eap_container_runtime: podman
+jboss_eap_container_registry: registry.redhat.io

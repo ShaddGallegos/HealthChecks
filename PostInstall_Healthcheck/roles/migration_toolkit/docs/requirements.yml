@@ -1,0 +1,13 @@
+---
+product: migration_toolkit
+source_urls:
+  - https://docs.redhat.com/en/documentation/migration_toolkit_for_applications
+best_practices:
+  - "Guard automated migration changes behind `apply_changes` and document rollback plans"
+  - "Perform migration dry-runs and validate results before final cutover"
+scenarios:
+  migrate:
+    preflight:
+      - "Verify source/target connectivity and credentials"
+    postinstall:
+      - "Run functional validation and compare results with source"

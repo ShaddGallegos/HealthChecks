@@ -1,0 +1,21 @@
+---
+# ansible-lint: skip_list=var-naming
+amq_preflight_admin_user: admin
+amq_preflight_container_rootless: false
+amq_preflight_sudo_group: wheel
+amq_product_repos: []
+amq_product_prereq_packages: []
+amq_product_required_secrets: []
+amq_product_required_mounts: []
+amq_installer_config_path: /etc/amq-installer.conf
+amq_product_ports: []
+amq_install_deps: false
+amq_apply_changes: false
+amq_validate_platform_certs: false
+amq_show_help: false
+amq_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+amq_container_runtime: podman
+amq_container_registry: registry.redhat.io

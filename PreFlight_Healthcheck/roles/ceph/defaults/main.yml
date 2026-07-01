@@ -1,20 +1,21 @@
 ---
-preflight_admin_user: admin
-preflight_container_rootless: false
-preflight_sudo_group: wheel
-product_repos:
+# ansible-lint: skip_list=var-naming
+ceph_preflight_admin_user: admin
+ceph_preflight_container_rootless: false
+ceph_preflight_sudo_group: wheel
+ceph_product_repos:
   - name: ceph-base
     description: Ceph repository
     baseurl: ""
-product_prereq_packages:
+ceph_product_prereq_packages:
   - python3
   - python3-venv
   - python3-pip
-product_required_secrets:
+ceph_product_required_secrets:
   - admin_password
   - repo_baseurl
   - installer_token
-product_required_mounts:
+ceph_product_required_mounts:
   - /var
   - /opt
-installer_config_path: /etc/ceph-installer.conf
+ceph_installer_config_path: /etc/ceph-installer.conf

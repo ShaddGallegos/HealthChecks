@@ -1,0 +1,21 @@
+---
+# ansible-lint: skip_list=var-naming
+acm_preflight_admin_user: admin
+acm_preflight_container_rootless: false
+acm_preflight_sudo_group: wheel
+acm_product_repos: []
+acm_product_prereq_packages: []
+acm_product_required_secrets: []
+acm_product_required_mounts: []
+acm_installer_config_path: /etc/acm-installer.conf
+acm_product_ports: []
+acm_install_deps: false
+acm_apply_changes: false
+acm_validate_platform_certs: false
+acm_show_help: false
+acm_supported_rhel_major_versions:
+  - '8'
+  - '9'
+  - '10'
+acm_container_runtime: podman
+acm_container_registry: registry.redhat.io

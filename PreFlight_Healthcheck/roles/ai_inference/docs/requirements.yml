@@ -1,0 +1,33 @@
+---
+product: ai_inference
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ai_inference_server/3.4
+hardware_requirements:
+  notes: "Inference servers often require GPUs/accelerators; consult product docs for supported hardware and driver requirements."
+os_requirements:
+  notes: "See product docs for supported OS versions and runtime prerequisites."
+setup_requirements:
+  - "Install and validate accelerator drivers and runtimes as required"
+  - "Ensure secure storage for models and adequate I/O throughput"
+best_practices:
+  - "Test model inference pipelines and monitor latency and resource usage"
+scenarios:
+  install:
+    preflight:
+      - "Verify driver/runtime compatibility and OS support"
+    postinstall:
+      - "Validate inference pipelines and monitoring"
+  upgrade:
+    preflight:
+      - "Backup model artifacts and configuration"
+    postinstall:
+      - "Validate runtime behavior and performance"
+  backup:
+    preflight:
+      - "Confirm model and metadata backup strategy"
+    postinstall: []
+  restore:
+    preflight:
+      - "Prepare target environment with matching drivers and runtimes"
+    postinstall:
+      - "Verify restored models and pipelines"

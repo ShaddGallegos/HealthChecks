@@ -1,0 +1,17 @@
+---
+product: migration_toolkit
+source_urls:
+  - https://docs.redhat.com/en/documentation/migration_toolkit_for_applications
+hardware_requirements:
+  notes: "Migration tooling may require JVM or container runtimes and connectivity to source/target systems."
+setup_requirements:
+  - "Collect source environment details (OS, app server, database versions) before planning migration"
+  - "Ensure credentials and network access to source/target are available"
+best_practices:
+  - "Run migration dry-runs in a staging environment and maintain backups of original configs"
+scenarios:
+  migrate:
+    preflight:
+      - "Inventory source artifacts and compatibility blockers"
+    postinstall:
+      - "Validate migrated artifacts and perform functional tests"

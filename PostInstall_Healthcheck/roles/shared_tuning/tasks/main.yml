@@ -1,0 +1,295 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+# Shared PostInstall tuning checks and safe apply patterns
+
+- name: Gather subscription-manager identity
+  ansible.builtin.shell: subscription-manager identity || true
+  register: sub_identity
+  changed_when: false
+  failed_when: false
+  tags: registration
+
+- name: Set subscription_registered fact
+  ansible.builtin.set_fact:
+    subscription_registered: "{{ (sub_identity.rc == 0) | bool }}"
+  tags: registration
+
+- name: Attempt registration if not registered (guarded)
+  ansible.builtin.shell: >-
+    subscription-manager register --username='{{ product_env.subscription_user | default('') }}' --password='{{ product_env.subscription_password | default('') }}' {% if product_env.subscription_pool is defined and product_env.subscription_pool | length > 0 %} --pool='{{ product_env.subscription_pool }}' {% else %} --auto-attach {% endif %}
+  register: sub_register
+  changed_when: sub_register.rc == 0
+  failed_when: false
+  when:
+    - not subscription_registered
+    - product_env.subscription_user is defined
+    - (apply_changes | default(false))
+    - not ansible_check_mode
+  tags: registration
+
+- name: Ensure configured product repos exist (guarded)
+  ansible.builtin.yum_repository:
+    name: "{{ repo_item.name }}"
+    description: "{{ repo_item.description | default(repo_item.name) }}"
+    baseurl: "{{ repo_item.baseurl }}"
+    enabled: true
+    gpgcheck: true
+  loop: "{{ product_repos | default([]) }}"
+  loop_control:
+    loop_var: repo_item
+  when: product_repos is defined and product_repos | length > 0 and (apply_changes | default(false))
+  tags: repos
+
+- name: Resolve expected prerequisite packages for shared reporting
+  ansible.builtin.set_fact:
+    resolved_product_prereq_packages: >-
+      {{ lookup('vars', product_name ~ '_product_prereq_packages', default=[]) }}
+  when: product_name is defined
+  tags: prereqs
+
+- name: Check for missing product prerequisite packages (shared report)
+  ansible.builtin.shell: |
+    if ! rpm -q {{ prereq_pkg }} >/dev/null 2>&1; then
+      echo {{ prereq_pkg }}
+    fi
+  register: shared_product_prereq_check_results
+  failed_when: false
+  changed_when: false
+  loop: "{{ resolved_product_prereq_packages | default([]) }}"
+  loop_control:
+    loop_var: prereq_pkg
+  when: resolved_product_prereq_packages | default([]) | length > 0
+  tags: prereqs
+
+- name: Set shared missing product prereq packages fact
+  ansible.builtin.set_fact:
+    shared_missing_prereq_packages: >-
+      {{
+        shared_product_prereq_check_results.results | default([])
+        | map(attribute='stdout') | reject('equalto', '') | list
+      }}
+  tags: prereqs
+
+- name: Install missing prerequisite packages (opt-in or apply_changes)
+  ansible.builtin.package:
+    name: "{{ shared_missing_prereq_packages | default([]) }}"
+    state: present
+  when: ((install_deps | default(false)) or (apply_changes | default(false))) and (shared_missing_prereq_packages | default([]) | length > 0) and not ansible_check_mode
+  tags: prereqs
+
+- name: Gather PCI device list
+  ansible.builtin.shell: |
+    if command -v lspci >/dev/null 2>&1; then
+      lspci -vvnn || true
+    else
+      echo 'lspci-not-present'
+    fi
+  register: lspci_out
+  changed_when: false
+  failed_when: false
+  tags: hardware
+
+- name: Gather NVIDIA info (if present)
+  ansible.builtin.shell: |
+    if command -v nvidia-smi >/dev/null 2>&1; then
+      nvidia-smi -q || true
+    else
+      echo 'nvidia-smi-not-present'
+    fi
+  register: nvidia_out
+  changed_when: false
+  failed_when: false
+  tags: hardware
+
+- name: Gather ROCm info (if present)
+  ansible.builtin.shell: |
+    if command -v rocminfo >/dev/null 2>&1; then
+      rocminfo || true
+    else
+      echo 'rocminfo-not-present'
+    fi
+  register: rocm_out
+  changed_when: false
+  failed_when: false
+  tags: hardware
+
+- name: Check product services active state
+  ansible.builtin.shell: systemctl is-active {{ service_name }} || true
+  register: product_service_states
+  loop: "{{ product_services | default([]) }}"
+  loop_control:
+    loop_var: service_name
+  when: product_services is defined and product_services | length > 0
+  changed_when: false
+  failed_when: false
+  tags: services
+
+- name: Start & enable missing product services (guarded)
+  ansible.builtin.systemd:
+    name: "{{ service_state.item }}"
+    state: started
+    enabled: true
+  loop: "{{ product_service_states.results | default([]) }}"
+  loop_control:
+    loop_var: service_state
+  when:
+    - service_state.stdout is defined
+    - service_state.stdout != 'active'
+    - (apply_changes | default(false))
+    - not ansible_check_mode
+  tags: services
+
+- name: Gather firewalld ports (if available)
+  ansible.builtin.shell: |
+    if command -v firewall-cmd >/dev/null 2>&1; then
+      firewall-cmd --list-ports || true
+    else
+      echo 'firewalld-not-present'
+    fi
+  register: fw_ports
+  changed_when: false
+  failed_when: false
+  tags: firewall
+
+- name: Open required product ports in firewalld (guarded)
+  ansible.builtin.shell: >-
+    firewall-cmd --permanent --add-port={{ required_port }}/tcp && firewall-cmd --reload || true
+  loop: "{{ product_ports | default([]) }}"
+  loop_control:
+    loop_var: required_port
+  when: fw_ports.stdout is defined and 'firewalld-not-present' not in fw_ports.stdout and (apply_changes | default(false)) and not ansible_check_mode
+  tags: firewall
+
+- name: Check SELinux state
+  ansible.builtin.command: getenforce || true
+  register: selinux_state
+  changed_when: false
+  failed_when: false
+  tags: security
+
+- name: Optionally set SELinux mode (guarded)
+  ansible.builtin.command: setenforce {{ product_env.selinux_mode }}
+  when:
+    - product_env.selinux_mode is defined
+    - (apply_changes | default(false))
+    - not ansible_check_mode
+  tags: security
+
+- name: Gather recent error journal entries
+  ansible.builtin.shell: journalctl -p err -n 500 --no-pager || true
+  register: recent_errors
+  changed_when: false
+  failed_when: false
+  tags: logs
+
+- name: Extract potential Bugzilla IDs from recent errors
+  ansible.builtin.shell: |
+    journalctl -p err -n 500 --no-pager | egrep -o 'bz#?[0-9]{6,7}|BZ#?[0-9]{6,7}|bugzilla.redhat.com/show_bug.cgi\?id=[0-9]+' | egrep -o '[0-9]{6,7}' | sort -u || true
+  register: bug_ids_raw
+  changed_when: false
+  failed_when: false
+  tags: bugzilla
+
+- name: Set bug_ids_found fact
+  ansible.builtin.set_fact:
+    bug_ids_found: "{{ bug_ids_raw.stdout_lines | default([]) }}"
+  tags: bugzilla
+
+- name: "Postinstall: detect hypervisor/cloud guest agents and IPMI"
+  block:
+    - name: Check for /dev/kvm
+      ansible.builtin.stat:
+        path: /dev/kvm
+      register: post_kvm_dev
+      failed_when: false
+      changed_when: false
+
+    - name: Check qemu-guest-agent service
+      ansible.builtin.command: systemctl is-active qemu-guest-agent || true
+      register: post_qemu_agent
+      failed_when: false
+      changed_when: false
+
+    - name: Check for VMware tools service
+      ansible.builtin.command: |
+        if systemctl list-units --type=service --all | egrep -q 'vmtoolsd|open-vm-tools'; then
+          systemctl is-active vmtoolsd || systemctl is-active open-vm-tools || true
+        else
+          echo 'not-present'
+        fi
+      register: post_vmware_tools
+      failed_when: false
+      changed_when: false
+
+    - name: Check cloud-init service status
+      ansible.builtin.command: systemctl is-active cloud-init || true
+      register: post_cloud_init
+      failed_when: false
+      changed_when: false
+
+    - name: Check for ipmitool presence
+      ansible.builtin.command: which ipmitool || true
+      register: post_ipmitool
+      failed_when: false
+      changed_when: false
+  tags: postinstall,target-checks
+
+- name: Query Bugzilla for found IDs (optional)
+  ansible.builtin.uri:
+    url: "https://bugzilla.redhat.com/rest/bug/{{ bug_id }}"
+    method: GET
+    return_content: yes
+  register: bugzilla_query_results
+  loop: "{{ bug_ids_found }}"
+  loop_control:
+    loop_var: bug_id
+  when: (bug_ids_found | length > 0) and (bugzilla_lookup | default(false))
+  changed_when: false
+  failed_when: false
+  tags: bugzilla
+
+- name: Build postinstall tuning report fact
+  ansible.builtin.set_fact:
+    postinstall_tuning_report:
+      product_name: "{{ product_name | default('unknown') }}"
+      inventory_hostname: "{{ inventory_hostname }}"
+      healthcheck_check_mode_only: "{{ healthcheck_check_mode_only_effective | default(true) }}"
+      subscription_registered: "{{ subscription_registered | default(false) }}"
+      subscription_register_result: "{{ sub_register.stdout | default('') }}"
+      repos_configured_count: "{{ (product_repos | default([])) | length }}"
+      prereqs: "{{ resolved_product_prereq_packages | default([]) }}"
+      missing_prerequisite_packages: "{{ shared_missing_prereq_packages | default([]) }}"
+      lspci: "{{ lspci_out.stdout | default('') }}"
+      nvidia: "{{ nvidia_out.stdout | default('') }}"
+      rocm: "{{ rocm_out.stdout | default('') }}"
+      service_states: "{{ product_service_states.results | default([]) }}"
+      firewalld_ports: "{{ fw_ports.stdout | default('') }}"
+      selinux: "{{ selinux_state.stdout | default('') }}"
+      recent_errors: "{{ recent_errors.stdout | default('') }}"
+      bug_ids: "{{ bug_ids_found | default([]) }}"
+      bugzilla_details: "{{ bugzilla_query_results.results | default([]) | map(attribute='json') | list if (bugzilla_lookup | default(false)) else [] }}"
+      target_checks:
+        kvm_device: "{{ post_kvm_dev.stat.exists | default(false) }}"
+        qemu_guest_agent: "{{ post_qemu_agent.stdout | default('') }}"
+        vmware_tools: "{{ post_vmware_tools.stdout | default('') }}"
+        cloud_init: "{{ post_cloud_init.stdout | default('') }}"
+        ipmitool: "{{ post_ipmitool.stdout | default('') }}"
+  tags: report
+
+- name: Ensure artifacts dir exists on controller for tuning reports
+  ansible.builtin.file:
+    path: "{{ artifacts_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report
+
+- name: Write postinstall tuning report to artifacts
+  ansible.builtin.copy:
+    content: "{{ postinstall_tuning_report | to_nice_json }}\n"
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name | default('product') }}-{{ inventory_hostname }}-postinstall-tuning.json"
+  delegate_to: localhost
+  changed_when: false
+  when: artifacts_dir is defined
+  tags: report

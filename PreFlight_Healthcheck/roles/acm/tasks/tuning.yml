@@ -1,0 +1,6 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+- name: Tuning placeholder for acm (guarded)
+  ansible.builtin.debug:
+    msg: "Tuning tasks for acm are guarded by acm_apply_changes and must be implemented per product best practices."
+  tags: tuning

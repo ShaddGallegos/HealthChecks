@@ -1,0 +1,31 @@
+---
+# ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
+# Preflight checks for single-node OpenShift
+- name: Include env vars file (may be ansible-vault encrypted)
+  ansible.builtin.include_vars:
+    file: "{{ lookup('env', 'HOME') + '/.ansible/conf/env.yml' }}"
+    name: env_vars
+  ignore_errors: true
+  tags: always
+
+- name: Check required ports for OpenShift single-node
+  ansible.builtin.shell: ss -ltnp | egrep -w ':8443|:6443|:22623' || true
+  register: sn_ports
+  failed_when: false
+  changed_when: false
+  tags: network
+
+- name: Capture CPU/memory
+  ansible.builtin.shell: echo "cpus=$(nproc)"; echo "mem_mb=$(free -m | awk '/Mem:/ {print $2}')"
+  register: hwinfo
+  changed_when: false
+  failed_when: false
+  tags: discovery
+
+- name: Write single-node openshift preflight artifact
+  ansible.builtin.copy:
+    dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/single_node_openshift-{{ inventory_hostname }}-preflight-report.json"
+    content: "{{ {'ports': sn_ports.stdout | default(''), 'hw': hwinfo.stdout | default('')} | to_nice_json }}"
+  delegate_to: localhost
+  when: artifacts_dir is defined
+  tags: report

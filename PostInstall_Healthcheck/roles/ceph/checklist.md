@@ -1,0 +1,8 @@
+- Prerequisites: python3, storage and kernel modules
+- Filesystems: ensure storage mounts have sufficient space and correct permissions
+- Packages: required Ceph packages installed
+- Pip: `pip`, `setuptools`, `wheel` upgraded
+- Admin user: create `admin` and configure passwordless sudo
+- Repositories: enable Ceph repositories
+- Installer config: verify Ceph installer configuration
+- Secrets: `~/.ansible/conf/env.yml` contains unique product secrets and is ansible-vault encrypted

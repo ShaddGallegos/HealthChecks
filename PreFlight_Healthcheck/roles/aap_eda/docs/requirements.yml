@@ -1,0 +1,46 @@
+---
+product: aap_eda
+source_urls:
+  - https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.7
+  - https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.7/migrate-migrate_from_existing_deployment_topologies
+hardware_requirements:
+  notes: "EDA is part of Ansible Automation Platform; follow AAP system requirements and topology guidance."
+os_requirements:
+  notes: "See AAP supported RHEL versions in the AAP system requirements page."
+setup_requirements:
+  - "Dedicated non-root user with sudo on hosts running EDA components"
+  - "SSH key authentication for managed nodes and any gateway/controller hosts"
+best_practices:
+  - "Follow AAP deployment topologies; validate EDA workloads in a staging environment before production"
+scenarios:
+  install:
+    preflight:
+      - "Verify AAP prerequisites (RHEL version, podman, inventory configuration)"
+      - "Verify EDA-related components or operators availability if deploying on OpenShift"
+    postinstall:
+      - "Verify EDA services and event handlers are running and reachable"
+  upgrade:
+    preflight:
+      - "Ensure backups of AAP and EDA data and verify restore procedures"
+    postinstall:
+      - "Validate EDA functionality and event processing after upgrade"
+  update:
+    preflight: []
+    postinstall: []
+  migrate:
+    preflight:
+      - "Plan topology and data migration according to AAP migration documentation"
+    postinstall: []
+  backup:
+    preflight:
+      - "Confirm backup playbooks include EDA data and configuration"
+    postinstall:
+      - "Verify backup artifacts for EDA components"
+  snapshot:
+    preflight: []
+    postinstall: []
+  restore:
+    preflight:
+      - "Ensure backups were taken with the matching installer and inventory"
+    postinstall:
+      - "Restore EDA components using installer or documented procedures and validate"
