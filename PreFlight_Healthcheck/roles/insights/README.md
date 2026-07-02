@@ -1,21 +1,21 @@
-# quay PreFlight Role
+# insights PreFlight Role
 
 ## Title
-quay PreFlight HealthCheck Role
+insights PreFlight HealthCheck Role
 
 ## Synopsis
-This role runs pre-install and pre-upgrade readiness checks for quay in the HealthChecks PreFlight workflow. It is designed for safe discovery-first execution and only applies changes when explicitly enabled.
+This role runs pre-install and pre-upgrade readiness checks for insights in the HealthChecks PreFlight workflow. It is designed for safe discovery-first execution and only applies changes when explicitly enabled.
 
 ## Quickstart
 Run this role through the PreFlight runner from /home/sgallego/GIT/HealthChecks:
 
     cd /home/sgallego/GIT/HealthChecks
-    ansible-playbook run_preflight.yml -e "products=['quay']"
+    ansible-playbook run_preflight.yml -e "products=['insights']"
 
 Run in apply mode (opt-in):
 
     cd /home/sgallego/GIT/HealthChecks
-    ansible-playbook run_preflight.yml -e "products=['quay'] healthcheck_check_mode_only=false"
+    ansible-playbook run_preflight.yml -e "products=['insights'] healthcheck_check_mode_only=false"
 
 ## Responsibilities
 - Validate host readiness before installation, upgrade, backup, or restore operations
@@ -34,8 +34,8 @@ Run in apply mode (opt-in):
 - Product-specific defaults and role variables
 
 ## Variables
-Primary defaults from PreFlight_Healthcheck/roles/quay/defaults/main.yml:
-- quay_supported_rhel_major_versions
+Primary defaults from PreFlight_Healthcheck/roles/insights/defaults/main.yml:
+- insights_supported_rhel_major_versions
 
 ## Artifacts and Outputs
 - JSON readiness output under artifacts_dir for this product
@@ -43,10 +43,9 @@ Primary defaults from PreFlight_Healthcheck/roles/quay/defaults/main.yml:
 - Task-level diagnostics captured in role-specific report structures
 
 ## File Map
-- PreFlight_Healthcheck/roles/quay/tasks/main.yml
-- PreFlight_Healthcheck/roles/quay/tasks/tuning.yml
-- PreFlight_Healthcheck/roles/quay/defaults/main.yml
-- PreFlight_Healthcheck/roles/quay/docs/metadata.yml
+- PreFlight_Healthcheck/roles/insights/tasks/main.yml
+- PreFlight_Healthcheck/roles/insights/defaults/main.yml
+- PreFlight_Healthcheck/roles/insights/docs/metadata.yml
 
 ## Troubleshooting
 - Confirm role secrets and environment inputs are present in ~/.ansible/conf/env.yml
