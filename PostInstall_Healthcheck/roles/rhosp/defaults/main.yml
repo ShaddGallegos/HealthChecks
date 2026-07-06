@@ -1,7 +1,7 @@
 ---
-rhosp_preflight_admin_user: admin
+rhosp_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 rhosp_preflight_container_rootless: false
-rhosp_preflight_sudo_group: wheel
+rhosp_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 rhosp_product_repos:
   - name: rhosp-base
     description: RHOSP repository

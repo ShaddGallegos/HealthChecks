@@ -95,10 +95,10 @@
 
 - name: Register system with subscription-manager (guarded)
   ansible.builtin.command: >
-    subscription-manager register --username={{ aap_product_env.subscription_username }} --password={{ aap_product_env.subscription_password }} --auto-attach
+    subscription-manager register --username={{ aap_product_env.subscription_username if (aap_product_env.get('subscription_username', '') != '') else (healthcheck_common_redhat_cdn_username | default('')) }} --password={{ aap_product_env.subscription_password if (aap_product_env.get('subscription_password', '') != '') else (healthcheck_common_redhat_cdn_password | default('')) }} --auto-attach
   when:
-    - aap_product_env.get('subscription_username', '') != ''
-    - aap_product_env.get('subscription_password', '') != ''
+    - (aap_product_env.get('subscription_username', '') != '') or ((healthcheck_common_redhat_cdn_username | default('')) != '')
+    - (aap_product_env.get('subscription_password', '') != '') or ((healthcheck_common_redhat_cdn_password | default('')) != '')
     - aap_apply_changes | default(false)
     - not ansible_check_mode
   register: aap_subman_register

@@ -1,6 +1,6 @@
 ---
-quay_postinstall_admin_user: admin
-quay_postinstall_sudo_group: wheel
+quay_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+quay_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 quay_product_repos: []
 quay_product_prereq_packages: []
 quay_product_required_secrets: []
@@ -15,3 +15,22 @@ quay_supported_rhel_major_versions:
   - '10'
 quay_container_runtime: podman
 quay_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+quay_postinstall_template_preflight_binary_enforcement: "warn"
+quay_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+quay_postinstall_template_mount_free_space_enforcement: "warn"
+quay_postinstall_template_mount_free_space_min_ratio: 0.15
+quay_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ quay_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ quay_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ quay_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ quay_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ quay_postinstall_template_mount_free_space_paths }}"

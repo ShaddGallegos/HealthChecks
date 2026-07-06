@@ -34,6 +34,40 @@
     fail_msg: "This PostInstall healthcheck requires root or a user with passwordless sudo (NOPASSWD)."
   tags: always
 
+- name: Check required binary paths for AAP checks
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ aap_preflight_required_binaries | default([]) }}"
+  register: aap_required_binary_stats
+  tags: always
+
+- name: Build missing required binary list
+  ansible.builtin.set_fact:
+    aap_missing_required_binaries: >-
+      {{
+        aap_required_binary_stats.results
+        | rejectattr('stat.exists', 'equalto', true)
+        | map(attribute='item')
+        | list
+      }}
+  tags: always
+
+- name: Warn when required binaries are missing
+  ansible.builtin.debug:
+    msg: "Missing required binaries for AAP checks: {{ aap_missing_required_binaries | join(', ') }}"
+  when:
+    - (aap_missing_required_binaries | length) > 0
+    - (aap_preflight_binary_enforcement | default('warn')) == 'warn'
+  tags: always
+
+- name: Fail when required binaries are missing and fail mode is enabled
+  ansible.builtin.assert:
+    that:
+      - (aap_missing_required_binaries | length) == 0
+    fail_msg: "Missing required binaries for AAP checks: {{ aap_missing_required_binaries | join(', ') }}"
+  when: (aap_preflight_binary_enforcement | default('warn')) == 'fail'
+  tags: always
+
 
 - name: Fail if required secrets missing
   ansible.builtin.fail:
@@ -53,6 +87,99 @@
   failed_when: false
   loop: "{{ aap_product_required_mounts | default([]) }}"
   tags: filesystems
+
+- name: Initialize mount free-space violations list
+  ansible.builtin.set_fact:
+    aap_mount_space_violations: []
+  tags: filesystems
+
+- name: Collect critical mounts below free-space threshold
+  ansible.builtin.set_fact:
+    aap_mount_space_violations: >-
+      {{
+        aap_mount_space_violations + [
+          {
+            'mount': item.mount,
+            'size_total': item.size_total,
+            'size_available': item.size_available,
+            'free_ratio': ((item.size_available | float) / (item.size_total | float))
+          }
+        ]
+      }}
+  loop: "{{ ansible_facts.mounts | default([]) }}"
+  when:
+    - item.mount in (aap_mount_free_space_paths | default([]))
+    - (item.size_total | int) > 0
+    - ((item.size_available | float) / (item.size_total | float)) < (aap_mount_free_space_min_ratio | float)
+  tags: filesystems
+
+- name: Capture /boot mount metrics
+  ansible.builtin.set_fact:
+    aap_boot_mount: >-
+      {{
+        (ansible_facts.mounts | default([]) | selectattr('mount', 'equalto', '/boot') | list | first)
+        if ((ansible_facts.mounts | default([]) | selectattr('mount', 'equalto', '/boot') | list | length) > 0)
+        else {}
+      }}
+  tags: filesystems
+
+- name: Build /boot free-space status from absolute MB threshold
+  ansible.builtin.set_fact:
+    aap_boot_free_mb: >-
+      {{
+        ((aap_boot_mount.size_available | default(0) | float) / 1024 / 1024) | round(2)
+      }}
+    aap_boot_violation: >-
+      {{
+        (
+          (aap_boot_mount | length > 0)
+          and
+          (((aap_boot_mount.size_available | default(0) | float) / 1024 / 1024)
+           < (aap_boot_min_free_mb | default(2048) | float))
+        )
+      }}
+  tags: filesystems
+
+- name: Warn when /boot free space is below required MB
+  ansible.builtin.debug:
+    msg: >-
+      /boot free space is below threshold: {{ aap_boot_free_mb }} MB available,
+      required minimum is {{ aap_boot_min_free_mb | default(2048) }} MB.
+  when:
+    - aap_boot_violation | bool
+    - (aap_mount_free_space_enforcement | default('warn')) == 'warn'
+  tags: filesystems
+
+- name: Fail when /boot free space is below required MB and fail mode is enabled
+  ansible.builtin.assert:
+    that:
+      - not (aap_boot_violation | bool)
+    fail_msg: >-
+      /boot free space is below threshold: {{ aap_boot_free_mb }} MB available,
+      required minimum is {{ aap_boot_min_free_mb | default(2048) }} MB.
+  when: (aap_mount_free_space_enforcement | default('warn')) == 'fail'
+  tags: filesystems
+
+- name: Warn on low free space for critical mounts
+  ansible.builtin.debug:
+    msg: "Low free space detected on critical mounts: {{ aap_mount_space_violations | to_nice_json }}"
+  when:
+    - (aap_mount_space_violations | length) > 0
+    - (aap_mount_free_space_enforcement | default('warn')) == 'warn'
+  tags: filesystems
+
+- name: Fail on low free space for critical mounts when fail mode is enabled
+  ansible.builtin.assert:
+    that:
+      - (aap_mount_space_violations | length) == 0
+    fail_msg: "Critical mounts below free-space threshold: {{ aap_mount_space_violations | to_nice_json }}"
+  when: (aap_mount_free_space_enforcement | default('warn')) == 'fail'
+  tags: filesystems
+
+- name: Include shared postinstall OS evidence checks
+  ansible.builtin.include_role:
+    name: postinstall_template
+  tags: postinstall
 
 # -----------------------------
 # Additional non-destructive discovery checks imported from orchestrator

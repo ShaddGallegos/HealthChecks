@@ -1,0 +1,20 @@
+---
+
+# Per-role overrides for shared postinstall template guardrails
+idm_postinstall_template_preflight_binary_enforcement: "warn"
+idm_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+idm_postinstall_template_mount_free_space_enforcement: "warn"
+idm_postinstall_template_mount_free_space_min_ratio: 0.15
+idm_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ idm_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ idm_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ idm_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ idm_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ idm_postinstall_template_mount_free_space_paths }}"

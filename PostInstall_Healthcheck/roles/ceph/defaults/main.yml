@@ -1,7 +1,7 @@
 ---
-ceph_preflight_admin_user: admin
+ceph_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 ceph_preflight_container_rootless: false
-ceph_preflight_sudo_group: wheel
+ceph_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 ceph_product_repos:
   - name: ceph-base
     description: Ceph repository
@@ -20,3 +20,22 @@ ceph_product_required_mounts:
 ceph_installer_config_path: /etc/ceph-installer.conf
 ceph_install_deps: false
 ceph_apply_changes: false
+
+# Per-role overrides for shared postinstall template guardrails
+ceph_postinstall_template_preflight_binary_enforcement: "warn"
+ceph_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+ceph_postinstall_template_mount_free_space_enforcement: "warn"
+ceph_postinstall_template_mount_free_space_min_ratio: 0.15
+ceph_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ ceph_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ ceph_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ ceph_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ ceph_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ ceph_postinstall_template_mount_free_space_paths }}"

@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-ansible_lightspeed_preflight_admin_user: admin
+ansible_lightspeed_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 ansible_lightspeed_preflight_container_rootless: false
-ansible_lightspeed_preflight_sudo_group: wheel
+ansible_lightspeed_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 ansible_lightspeed_product_repos: []
 ansible_lightspeed_product_prereq_packages: []
 ansible_lightspeed_product_required_secrets: []

@@ -1,0 +1,81 @@
+---
+- name: Detect available container runtime
+  ansible.builtin.shell: |
+    set -o pipefail
+    for runtime in {{ discovery_healthcheck_container_runtime_candidates | join(' ') }}; do
+      if command -v "$runtime" >/dev/null 2>&1; then
+        echo "$runtime"
+        exit 0
+      fi
+    done
+    exit 1
+  register: discovery_runtime_detect
+  changed_when: false
+  failed_when: false
+
+- name: Capture runtime version if detected
+  ansible.builtin.command:
+    cmd: "{{ discovery_runtime_detect.stdout }} --version"
+  register: discovery_runtime_version
+  changed_when: false
+  failed_when: false
+  when: discovery_runtime_detect.rc == 0
+
+- name: List local images to identify Discovery-related artifacts
+  ansible.builtin.command:
+    cmd: "{{ discovery_runtime_detect.stdout }} images --format '{{ '{{' }}.Repository{{ '}}' }}:{{ '{{' }}.Tag{{ '}}' }}'"
+  register: discovery_runtime_images
+  changed_when: false
+  failed_when: false
+  when: discovery_runtime_detect.rc == 0
+
+- name: Check for optional Discovery tooling binaries
+  ansible.builtin.shell: |
+    for bin in skopeo jq curl; do
+      if command -v "$bin" >/dev/null 2>&1; then
+        echo "$bin:present"
+      else
+        echo "$bin:missing"
+      fi
+    done
+  register: discovery_optional_bins
+  changed_when: false
+  failed_when: false
+
+- name: Derive runtime status
+  ansible.builtin.set_fact:
+    discovery_runtime_status: >-
+      {{
+        'pass'
+        if discovery_runtime_detect.rc == 0
+        else 'fail'
+      }}
+
+- name: Update result for runtime checks
+  ansible.builtin.set_fact:
+    discovery_healthcheck_result: >-
+      {{
+        discovery_healthcheck_result
+        | combine(
+            {
+              'checks': {
+                'runtime': {
+                  'status': discovery_runtime_status,
+                  'details': {
+                    'runtime_command': discovery_runtime_detect.stdout | default(''),
+                    'runtime_version': discovery_runtime_version.stdout | default('not_available'),
+                    'optional_tooling': discovery_optional_bins.stdout_lines | default([]),
+                    'discovery_image_candidates': (
+                      discovery_runtime_images.stdout_lines
+                      | default([])
+                      | select('search', 'discovery|subscription-central')
+                      | list
+                    ),
+                    'all_images_collected': discovery_runtime_images.stdout_lines | default([])
+                  }
+                }
+              }
+            },
+            recursive=True
+          )
+      }}

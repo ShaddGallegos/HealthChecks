@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-insights_preflight_admin_user: admin
+insights_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 insights_preflight_container_rootless: false
-insights_preflight_sudo_group: wheel
+insights_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 insights_product_repos: []
 insights_product_prereq_packages: []
 insights_product_required_secrets: []

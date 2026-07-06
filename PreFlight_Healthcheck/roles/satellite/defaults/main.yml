@@ -1,9 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-satellite_preflight_admin_user: admin
+satellite_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 satellite_preflight_container_rootless: false
-satellite_preflight_sudo_group: wheel
-
+satellite_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 satellite_product_repos:
   - name: satellite-base
     description: Satellite repository

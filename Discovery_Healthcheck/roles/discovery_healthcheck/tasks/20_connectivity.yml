@@ -1,0 +1,56 @@
+---
+- name: Resolve required Discovery endpoints
+  ansible.builtin.command:
+    cmd: "getent hosts {{ item }}"
+  loop: "{{ discovery_healthcheck_required_endpoints }}"
+  register: discovery_dns_checks
+  changed_when: false
+  failed_when: false
+
+- name: Validate HTTPS connectivity to required endpoints
+  ansible.builtin.uri:
+    url: "https://{{ item }}"
+    method: GET
+    return_content: false
+    timeout: "{{ discovery_healthcheck_runtime_timeout_seconds }}"
+    validate_certs: true
+    follow_redirects: safe
+    status_code: [200, 301, 302, 307, 308, 401, 403]
+  loop: "{{ discovery_healthcheck_required_endpoints }}"
+  register: discovery_https_checks
+  failed_when: false
+  changed_when: false
+
+- name: Build connectivity status
+  ansible.builtin.set_fact:
+    discovery_connectivity_status: >-
+      {{
+        'pass'
+        if (
+          (discovery_dns_checks.results | rejectattr('rc', 'equalto', 0) | list | length == 0)
+          and
+          (discovery_https_checks.results | rejectattr('status', 'defined') | list | length == 0)
+        )
+        else 'warn'
+      }}
+
+- name: Update result for connectivity checks
+  ansible.builtin.set_fact:
+    discovery_healthcheck_result: >-
+      {{
+        discovery_healthcheck_result
+        | combine(
+            {
+              'checks': {
+                'connectivity': {
+                  'status': discovery_connectivity_status,
+                  'details': {
+                    'dns': discovery_dns_checks.results | default([]),
+                    'https': discovery_https_checks.results | default([])
+                  }
+                }
+              }
+            },
+            recursive=True
+          )
+      }}

@@ -1,0 +1,12 @@
+---
+- name: Red Hat Discovery HealthCheck
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  become: true
+
+  vars:
+    discovery_healthcheck_output_dir: "./discovery_reports"
+
+  roles:
+    - role: discovery_healthcheck

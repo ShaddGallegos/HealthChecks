@@ -1,0 +1,12 @@
+---
+discovery_healthcheck_output_dir: "./discovery_reports"
+
+discovery_healthcheck_required_endpoints:
+  - "registry.redhat.io"
+  - "console.redhat.com"
+
+discovery_healthcheck_container_runtime_candidates:
+  - "podman"
+  - "docker"
+
+discovery_healthcheck_runtime_timeout_seconds: 10

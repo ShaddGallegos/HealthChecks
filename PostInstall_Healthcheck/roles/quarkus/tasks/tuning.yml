@@ -33,8 +33,8 @@
 
 - name: Register system with subscription-manager (guarded)
   ansible.builtin.command: >
-    subscription-manager register --username={{ product_env.subscription_username }} --password={{ product_env.subscription_password }} --auto-attach
-  when: (product_env.get('subscription_username','') != '') and (product_env.get('subscription_password','') != '') and (quarkus_apply_changes | default(false)) and not ansible_check_mode
+    subscription-manager register --username={{ (product_env.get('subscription_username', '') if (product_env.get('subscription_username', '') != '') else (product_env.get('subscription_user', '') if (product_env.get('subscription_user', '') != '') else (product_env.get('rhsm_username', '') if (product_env.get('rhsm_username', '') != '') else (product_env.get('redhat_cdn_username', '') if (product_env.get('redhat_cdn_username', '') != '') else (healthcheck_common_redhat_cdn_username | default('')))))) }} --password={{ (product_env.get('subscription_password', '') if (product_env.get('subscription_password', '') != '') else (product_env.get('rhsm_password', '') if (product_env.get('rhsm_password', '') != '') else (product_env.get('redhat_cdn_password', '') if (product_env.get('redhat_cdn_password', '') != '') else (healthcheck_common_redhat_cdn_password | default(''))))) }} --auto-attach
+  when: ((product_env.get('subscription_username','') != '') or (product_env.get('subscription_user','') != '') or (product_env.get('rhsm_username','') != '') or (product_env.get('redhat_cdn_username','') != '') or ((healthcheck_common_redhat_cdn_username | default('')) != '')) and ((product_env.get('subscription_password','') != '') or (product_env.get('rhsm_password','') != '') or (product_env.get('redhat_cdn_password','') != '') or ((healthcheck_common_redhat_cdn_password | default('')) != '')) and (quarkus_apply_changes | default(false)) and not ansible_check_mode
   register: subman_register
   ignore_errors: "{{ postinstall_ignore_tuning_errors | default(false) }}"
   tags: registration

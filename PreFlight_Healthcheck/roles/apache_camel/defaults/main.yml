@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-apache_camel_preflight_admin_user: admin
+apache_camel_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 apache_camel_preflight_container_rootless: false
-apache_camel_preflight_sudo_group: wheel
+apache_camel_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 apache_camel_product_repos: []
 apache_camel_product_prereq_packages: []
 apache_camel_product_required_secrets: []

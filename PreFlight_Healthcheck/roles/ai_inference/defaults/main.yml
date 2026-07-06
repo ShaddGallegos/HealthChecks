@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-ai_inference_preflight_admin_user: admin
+ai_inference_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 ai_inference_preflight_container_rootless: false
-ai_inference_preflight_sudo_group: wheel
+ai_inference_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 ai_inference_product_repos: []
 ai_inference_product_prereq_packages: []
 ai_inference_product_required_secrets: []

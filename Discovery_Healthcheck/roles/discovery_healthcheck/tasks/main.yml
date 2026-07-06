@@ -1,0 +1,24 @@
+---
+- name: Prepare workspace and initialize result bucket
+  ansible.builtin.include_tasks: 00_setup.yml
+  tags: [always, setup]
+
+- name: Detect container runtime and Discovery image clues
+  ansible.builtin.include_tasks: 10_runtime.yml
+  tags: [runtime, container]
+
+- name: Validate endpoint name resolution and HTTPS reachability
+  ansible.builtin.include_tasks: 20_connectivity.yml
+  tags: [connectivity, dns, network]
+
+- name: Collect services and system evidence
+  ansible.builtin.include_tasks: 30_services.yml
+  tags: [services, evidence]
+
+- name: Write machine-readable and markdown reports
+  ansible.builtin.include_tasks: 40_report.yml
+  tags: [report]
+
+- name: Print run summary
+  ansible.builtin.include_tasks: 50_summary.yml
+  tags: [summary]

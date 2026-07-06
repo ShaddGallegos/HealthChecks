@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-ceph_preflight_admin_user: admin
+ceph_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 ceph_preflight_container_rootless: false
-ceph_preflight_sudo_group: wheel
+ceph_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 ceph_product_repos:
   - name: ceph-base
     description: Ceph repository

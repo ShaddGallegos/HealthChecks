@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-application_foundations_preflight_admin_user: admin
+application_foundations_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 application_foundations_preflight_container_rootless: false
-application_foundations_preflight_sudo_group: wheel
+application_foundations_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 application_foundations_product_repos: []
 application_foundations_product_prereq_packages: []
 application_foundations_product_required_secrets: []

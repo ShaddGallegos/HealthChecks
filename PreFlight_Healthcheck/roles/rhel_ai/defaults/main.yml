@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-rhel_ai_preflight_admin_user: admin
+rhel_ai_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 rhel_ai_preflight_container_rootless: false
-rhel_ai_preflight_sudo_group: wheel
+rhel_ai_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 rhel_ai_product_repos: []
 rhel_ai_product_prereq_packages: []
 rhel_ai_product_required_secrets: []

@@ -1,0 +1,150 @@
+---
+# Shared preflight enforcement for PostInstall template role.
+# Allowed values: warn, fail
+postinstall_template_preflight_binary_enforcement: "warn"
+
+# Host binary paths expected on RHEL-family systems.
+postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+
+# Shared mount free-space threshold checks.
+# Allowed values: warn, fail
+postinstall_template_mount_free_space_enforcement: "warn"
+postinstall_template_mount_free_space_min_ratio: 0.15
+postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+# /boot is checked by absolute minimum free MB while other paths use percentage.
+postinstall_template_boot_min_free_mb: 2048
+
+# Product-specific mount profiles (used when product_name is available).
+# Keep /boot out of ratio paths because it has an absolute MB guardrail.
+postinstall_template_mount_free_space_paths_by_product:
+  aap:
+    - /
+    - /var
+    - /var/lib/awx
+    - /var/lib/pulp
+    - /var/lib/pgsql
+    - /var/lib/redis
+  aap_eda:
+    - /
+    - /var
+    - /var/lib/automation-eda
+    - /var/lib/containers
+  acm:
+    - /
+    - /var
+    - /var/lib/containers
+  acs:
+    - /
+    - /var
+    - /var/lib/containers
+  ai_enterprise:
+    - /
+    - /var
+    - /var/lib/containers
+  ai_inference:
+    - /
+    - /var
+    - /var/lib/containers
+  amq:
+    - /
+    - /var
+    - /var/lib/artemis
+    - /var/lib/containers
+  apache_camel:
+    - /
+    - /var
+    - /var/lib/containers
+  application_foundations:
+    - /
+    - /var
+    - /var/lib/containers
+  ceph:
+    - /
+    - /var
+    - /var/lib/ceph
+    - /var/lib/containers
+  certificate_system:
+    - /
+    - /var
+    - /var/lib/pki
+  data_grid:
+    - /
+    - /var
+    - /var/lib/infinispan
+  developer_hub:
+    - /
+    - /var
+    - /var/lib/containers
+  directory_server:
+    - /
+    - /var
+    - /var/lib/dirsrv
+  gitea:
+    - /
+    - /var
+    - /var/lib/gitea
+  idm:
+    - /
+    - /var
+    - /var/lib/dirsrv
+  jboss_eap:
+    - /
+    - /var
+    - /opt
+  jboss_webserver:
+    - /
+    - /var
+    - /opt
+  keycloak:
+    - /
+    - /var
+    - /opt/keycloak
+  migration_toolkit:
+    - /
+    - /var
+    - /var/lib/containers
+    - /var/lib/migration-toolkit
+  openshift:
+    - /
+    - /var
+    - /var/lib/containers
+  openshift_local:
+    - /
+    - /var
+    - /var/lib/containers
+  quarkus:
+    - /
+    - /var
+    - /var/lib/containers
+  quay:
+    - /
+    - /var
+    - /var/lib/containers
+    - /var/lib/quay
+    - /var/lib/postgresql
+    - /var/lib/pgsql
+  rhel:
+    - /
+    - /var
+    - /home
+  rhel_ai:
+    - /
+    - /var
+    - /var/lib/containers
+    - /var/lib/ollama
+  single_node_openshift:
+    - /
+    - /var
+    - /var/lib/containers
+  three_scale:
+    - /
+    - /var
+    - /opt
+    - /var/lib/pgsql

@@ -12,12 +12,20 @@
             'username': (
               satellite_hosts_export_username
               if (satellite_hosts_export_username | length > 0)
-              else satellite_product_env.get('sat_username', '')
+              else (
+                satellite_product_env.get('sat_username', '')
+                if (satellite_product_env.get('sat_username', '') | length > 0)
+                else satellite_product_env.get('satellite_admin_username', '')
+              )
             ),
             'password': (
               satellite_hosts_export_password
               if (satellite_hosts_export_password | length > 0)
-              else satellite_product_env.get('sat_password', '')
+              else (
+                satellite_product_env.get('sat_password', '')
+                if (satellite_product_env.get('sat_password', '') | length > 0)
+                else satellite_product_env.get('satellite_admin_password', '')
+              )
             )
           }
         ]

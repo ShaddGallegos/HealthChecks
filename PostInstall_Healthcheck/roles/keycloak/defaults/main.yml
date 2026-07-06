@@ -1,6 +1,6 @@
 ---
-keycloak_postinstall_admin_user: admin
-keycloak_postinstall_sudo_group: wheel
+keycloak_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+keycloak_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 keycloak_product_repos: []
 keycloak_product_prereq_packages: []
 keycloak_product_required_secrets: []
@@ -15,3 +15,22 @@ keycloak_supported_rhel_major_versions:
   - '10'
 keycloak_container_runtime: podman
 keycloak_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+keycloak_postinstall_template_preflight_binary_enforcement: "warn"
+keycloak_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+keycloak_postinstall_template_mount_free_space_enforcement: "warn"
+keycloak_postinstall_template_mount_free_space_min_ratio: 0.15
+keycloak_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ keycloak_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ keycloak_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ keycloak_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ keycloak_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ keycloak_postinstall_template_mount_free_space_paths }}"

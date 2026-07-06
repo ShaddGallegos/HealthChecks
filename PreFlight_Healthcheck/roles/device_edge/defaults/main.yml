@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-device_edge_preflight_admin_user: admin
+device_edge_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 device_edge_preflight_container_rootless: false
-device_edge_preflight_sudo_group: wheel
+device_edge_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 device_edge_product_repos: []
 device_edge_product_prereq_packages: []
 device_edge_product_required_secrets: []

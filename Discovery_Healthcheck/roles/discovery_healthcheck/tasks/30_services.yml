@@ -1,0 +1,66 @@
+---
+- name: Collect Discovery-related systemd units
+  ansible.builtin.shell: |
+    systemctl list-units --type=service --all --no-pager --no-legend | grep -Ei 'discovery|subscription|insights' || true
+  register: discovery_service_units
+  changed_when: false
+  failed_when: false
+
+- name: Collect Discovery-related containers if runtime is available
+  ansible.builtin.command:
+    cmd: "{{ discovery_runtime_detect.stdout }} ps -a --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Image{{ '}}' }} {{ '{{' }}.Status{{ '}}' }}'"
+  register: discovery_container_list
+  changed_when: false
+  failed_when: false
+  when: discovery_runtime_detect.rc == 0
+
+- name: Filter relevant Discovery containers
+  ansible.builtin.set_fact:
+    discovery_filtered_containers: >-
+      {{
+        (discovery_container_list.stdout_lines | default([]))
+        | select('search', 'discovery|subscription|insights')
+        | list
+      }}
+
+- name: Collect recent journal errors
+  ansible.builtin.command:
+    cmd: journalctl -p err -n 150 --no-pager
+  register: discovery_journal_errors
+  changed_when: false
+  failed_when: false
+
+- name: Build services status
+  ansible.builtin.set_fact:
+    discovery_services_status: >-
+      {{
+        'pass'
+        if (
+          (discovery_filtered_containers | length > 0)
+          or
+          (discovery_service_units.stdout_lines | default([]) | length > 0)
+        )
+        else 'warn'
+      }}
+
+- name: Update result for services checks
+  ansible.builtin.set_fact:
+    discovery_healthcheck_result: >-
+      {{
+        discovery_healthcheck_result
+        | combine(
+            {
+              'checks': {
+                'services': {
+                  'status': discovery_services_status,
+                  'details': {
+                    'service_units': discovery_service_units.stdout_lines | default([]),
+                    'containers': discovery_filtered_containers | default([]),
+                    'journal_errors_tail': discovery_journal_errors.stdout_lines | default([])
+                  }
+                }
+              }
+            },
+            recursive=True
+          )
+      }}

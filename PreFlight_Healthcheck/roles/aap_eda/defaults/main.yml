@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-aap_eda_preflight_admin_user: admin
+aap_eda_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 aap_eda_preflight_container_rootless: false
-aap_eda_preflight_sudo_group: wheel
+aap_eda_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 aap_eda_product_repos: []
 aap_eda_product_prereq_packages: []
 aap_eda_product_required_secrets: []

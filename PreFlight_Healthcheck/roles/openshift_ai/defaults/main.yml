@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-openshift_ai_preflight_admin_user: admin
+openshift_ai_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 openshift_ai_preflight_container_rootless: false
-openshift_ai_preflight_sudo_group: wheel
+openshift_ai_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 openshift_ai_product_repos: []
 openshift_ai_product_prereq_packages: []
 openshift_ai_product_required_secrets: []

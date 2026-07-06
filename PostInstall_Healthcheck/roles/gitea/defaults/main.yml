@@ -1,0 +1,20 @@
+---
+
+# Per-role overrides for shared postinstall template guardrails
+gitea_postinstall_template_preflight_binary_enforcement: "warn"
+gitea_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+gitea_postinstall_template_mount_free_space_enforcement: "warn"
+gitea_postinstall_template_mount_free_space_min_ratio: 0.15
+gitea_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ gitea_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ gitea_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ gitea_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ gitea_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ gitea_postinstall_template_mount_free_space_paths }}"

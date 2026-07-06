@@ -1,6 +1,6 @@
 ---
-directory_server_postinstall_admin_user: admin
-directory_server_postinstall_sudo_group: wheel
+directory_server_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+directory_server_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 directory_server_product_repos: []
 directory_server_product_prereq_packages: []
 directory_server_product_required_secrets: []
@@ -15,3 +15,22 @@ directory_server_supported_rhel_major_versions:
   - '10'
 directory_server_container_runtime: podman
 directory_server_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+directory_server_postinstall_template_preflight_binary_enforcement: "warn"
+directory_server_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+directory_server_postinstall_template_mount_free_space_enforcement: "warn"
+directory_server_postinstall_template_mount_free_space_min_ratio: 0.15
+directory_server_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ directory_server_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ directory_server_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ directory_server_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ directory_server_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ directory_server_postinstall_template_mount_free_space_paths }}"

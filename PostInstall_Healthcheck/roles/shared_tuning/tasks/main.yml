@@ -16,13 +16,14 @@
 
 - name: Attempt registration if not registered (guarded)
   ansible.builtin.shell: >-
-    subscription-manager register --username='{{ product_env.subscription_user | default('') }}' --password='{{ product_env.subscription_password | default('') }}' {% if product_env.subscription_pool is defined and product_env.subscription_pool | length > 0 %} --pool='{{ product_env.subscription_pool }}' {% else %} --auto-attach {% endif %}
+    subscription-manager register --username='{{ product_env.subscription_user if (product_env.subscription_user is defined and (product_env.subscription_user | length > 0)) else (healthcheck_common_redhat_cdn_username | default('')) }}' --password='{{ product_env.subscription_password if (product_env.subscription_password is defined and (product_env.subscription_password | length > 0)) else (healthcheck_common_redhat_cdn_password | default('')) }}' {% if product_env.subscription_pool is defined and product_env.subscription_pool | length > 0 %} --pool='{{ product_env.subscription_pool }}' {% else %} --auto-attach {% endif %}
   register: sub_register
   changed_when: sub_register.rc == 0
   failed_when: false
   when:
     - not subscription_registered
-    - product_env.subscription_user is defined
+    - (product_env.subscription_user is defined and (product_env.subscription_user | length > 0)) or ((healthcheck_common_redhat_cdn_username | default('')) != '')
+    - (product_env.subscription_password is defined and (product_env.subscription_password | length > 0)) or ((healthcheck_common_redhat_cdn_password | default('')) != '')
     - (apply_changes | default(false))
     - not ansible_check_mode
   tags: registration

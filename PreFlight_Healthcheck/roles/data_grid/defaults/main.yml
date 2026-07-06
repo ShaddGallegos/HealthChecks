@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-data_grid_preflight_admin_user: admin
+data_grid_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 data_grid_preflight_container_rootless: false
-data_grid_preflight_sudo_group: wheel
+data_grid_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 data_grid_product_repos: []
 data_grid_product_prereq_packages: []
 data_grid_product_required_secrets: []

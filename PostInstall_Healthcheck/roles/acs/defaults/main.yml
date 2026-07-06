@@ -1,6 +1,6 @@
 ---
-acs_postinstall_admin_user: admin
-acs_postinstall_sudo_group: wheel
+acs_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+acs_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 acs_product_repos: []
 acs_product_prereq_packages: []
 acs_product_required_secrets: []
@@ -15,3 +15,22 @@ acs_supported_rhel_major_versions:
   - '10'
 acs_container_runtime: podman
 acs_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+acs_postinstall_template_preflight_binary_enforcement: "warn"
+acs_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+acs_postinstall_template_mount_free_space_enforcement: "warn"
+acs_postinstall_template_mount_free_space_min_ratio: 0.15
+acs_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ acs_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ acs_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ acs_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ acs_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ acs_postinstall_template_mount_free_space_paths }}"

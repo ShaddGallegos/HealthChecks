@@ -1,6 +1,6 @@
 ---
-three_scale_postinstall_admin_user: admin
-three_scale_postinstall_sudo_group: wheel
+three_scale_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+three_scale_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 three_scale_product_repos: []
 three_scale_product_prereq_packages: []
 three_scale_product_required_secrets: []
@@ -15,3 +15,22 @@ three_scale_supported_rhel_major_versions:
   - '10'
 three_scale_container_runtime: podman
 three_scale_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+three_scale_postinstall_template_preflight_binary_enforcement: "warn"
+three_scale_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+three_scale_postinstall_template_mount_free_space_enforcement: "warn"
+three_scale_postinstall_template_mount_free_space_min_ratio: 0.15
+three_scale_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ three_scale_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ three_scale_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ three_scale_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ three_scale_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ three_scale_postinstall_template_mount_free_space_paths }}"

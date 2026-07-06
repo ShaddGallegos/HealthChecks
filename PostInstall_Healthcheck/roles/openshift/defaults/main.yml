@@ -1,7 +1,7 @@
 ---
-openshift_preflight_admin_user: admin
+openshift_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 openshift_preflight_container_rootless: true
-openshift_preflight_sudo_group: wheel
+openshift_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 openshift_product_repos:
   - name: openshift-base
     description: OpenShift repository

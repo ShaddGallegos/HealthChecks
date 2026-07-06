@@ -1,6 +1,6 @@
 ---
-data_grid_postinstall_admin_user: admin
-data_grid_postinstall_sudo_group: wheel
+data_grid_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+data_grid_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 data_grid_product_repos: []
 data_grid_product_prereq_packages: []
 data_grid_product_required_secrets: []
@@ -15,3 +15,22 @@ data_grid_supported_rhel_major_versions:
   - '10'
 data_grid_container_runtime: podman
 data_grid_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+data_grid_postinstall_template_preflight_binary_enforcement: "warn"
+data_grid_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+data_grid_postinstall_template_mount_free_space_enforcement: "warn"
+data_grid_postinstall_template_mount_free_space_min_ratio: 0.15
+data_grid_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ data_grid_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ data_grid_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ data_grid_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ data_grid_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ data_grid_postinstall_template_mount_free_space_paths }}"

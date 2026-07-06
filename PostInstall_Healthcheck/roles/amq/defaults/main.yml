@@ -1,6 +1,6 @@
 ---
-amq_postinstall_admin_user: admin
-amq_postinstall_sudo_group: wheel
+amq_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+amq_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 amq_product_repos: []
 amq_product_prereq_packages: []
 amq_product_required_secrets: []
@@ -15,3 +15,22 @@ amq_supported_rhel_major_versions:
   - '10'
 amq_container_runtime: podman
 amq_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+amq_postinstall_template_preflight_binary_enforcement: "warn"
+amq_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+amq_postinstall_template_mount_free_space_enforcement: "warn"
+amq_postinstall_template_mount_free_space_min_ratio: 0.15
+amq_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ amq_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ amq_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ amq_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ amq_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ amq_postinstall_template_mount_free_space_paths }}"

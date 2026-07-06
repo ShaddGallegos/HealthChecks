@@ -1,8 +1,8 @@
 ---
 # ansible-lint: skip_list=var-naming
-jboss_eap_preflight_admin_user: admin
+jboss_eap_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 jboss_eap_preflight_container_rootless: false
-jboss_eap_preflight_sudo_group: wheel
+jboss_eap_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 jboss_eap_product_repos: []
 jboss_eap_product_prereq_packages: []
 jboss_eap_product_required_secrets: []

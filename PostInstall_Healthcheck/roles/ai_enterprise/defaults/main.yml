@@ -1,6 +1,6 @@
 ---
-ai_enterprise_postinstall_admin_user: admin
-ai_enterprise_postinstall_sudo_group: wheel
+ai_enterprise_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+ai_enterprise_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 ai_enterprise_product_repos: []
 ai_enterprise_product_prereq_packages: []
 ai_enterprise_product_required_secrets: []
@@ -15,3 +15,22 @@ ai_enterprise_supported_rhel_major_versions:
   - '10'
 ai_enterprise_container_runtime: podman
 ai_enterprise_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+ai_enterprise_postinstall_template_preflight_binary_enforcement: "warn"
+ai_enterprise_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+ai_enterprise_postinstall_template_mount_free_space_enforcement: "warn"
+ai_enterprise_postinstall_template_mount_free_space_min_ratio: 0.15
+ai_enterprise_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ ai_enterprise_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ ai_enterprise_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ ai_enterprise_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ ai_enterprise_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ ai_enterprise_postinstall_template_mount_free_space_paths }}"

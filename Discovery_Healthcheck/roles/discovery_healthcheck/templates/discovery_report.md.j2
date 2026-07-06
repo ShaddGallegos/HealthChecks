@@ -1,0 +1,62 @@
+# Discovery HealthCheck Report
+
+- Host: {{ discovery_healthcheck_result.metadata.host }}
+- Started: {{ discovery_healthcheck_result.metadata.started_at }}
+- Completed: {{ discovery_healthcheck_result.metadata.completed_at | default('n/a') }}
+- Overall Status: {{ discovery_healthcheck_result.metadata.overall_status | default('unknown') }}
+- Article Reference: {{ discovery_healthcheck_result.metadata.article_reference }}
+
+## Summary
+
+- Pass: {{ discovery_healthcheck_result.summary.pass | default(0) }}
+- Warn: {{ discovery_healthcheck_result.summary.warn | default(0) }}
+- Fail: {{ discovery_healthcheck_result.summary.fail | default(0) }}
+
+## Runtime
+
+- Status: {{ discovery_healthcheck_result.checks.runtime.status }}
+- Runtime: {{ discovery_healthcheck_result.checks.runtime.details.runtime_command | default('n/a') }}
+- Version: {{ discovery_healthcheck_result.checks.runtime.details.runtime_version | default('n/a') }}
+
+### Discovery Image Candidates
+{% for image in discovery_healthcheck_result.checks.runtime.details.discovery_image_candidates | default([]) %}
+- {{ image }}
+{% else %}
+- None detected
+{% endfor %}
+
+## Connectivity
+
+- Status: {{ discovery_healthcheck_result.checks.connectivity.status }}
+
+### DNS
+{% for row in discovery_healthcheck_result.checks.connectivity.details.dns | default([]) %}
+- Endpoint {{ row.item }}: rc={{ row.rc | default('n/a') }}
+{% else %}
+- No DNS data collected
+{% endfor %}
+
+### HTTPS
+{% for row in discovery_healthcheck_result.checks.connectivity.details.https | default([]) %}
+- Endpoint {{ row.item }}: status={{ row.status | default('unreachable') }}
+{% else %}
+- No HTTPS data collected
+{% endfor %}
+
+## Services and Evidence
+
+- Status: {{ discovery_healthcheck_result.checks.services.status }}
+
+### Containers
+{% for line in discovery_healthcheck_result.checks.services.details.containers | default([]) %}
+- {{ line }}
+{% else %}
+- No Discovery-related containers detected
+{% endfor %}
+
+### Service Units
+{% for line in discovery_healthcheck_result.checks.services.details.service_units | default([]) %}
+- {{ line }}
+{% else %}
+- No Discovery-related service units detected
+{% endfor %}

@@ -1,0 +1,20 @@
+---
+
+# Per-role overrides for shared postinstall template guardrails
+openshift_local_postinstall_template_preflight_binary_enforcement: "warn"
+openshift_local_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+openshift_local_postinstall_template_mount_free_space_enforcement: "warn"
+openshift_local_postinstall_template_mount_free_space_min_ratio: 0.15
+openshift_local_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ openshift_local_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ openshift_local_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ openshift_local_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ openshift_local_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ openshift_local_postinstall_template_mount_free_space_paths }}"

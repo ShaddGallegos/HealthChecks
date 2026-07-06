@@ -1,6 +1,6 @@
 ---
-developer_hub_postinstall_admin_user: admin
-developer_hub_postinstall_sudo_group: wheel
+developer_hub_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+developer_hub_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 developer_hub_product_repos: []
 developer_hub_product_prereq_packages: []
 developer_hub_product_required_secrets: []
@@ -15,3 +15,22 @@ developer_hub_supported_rhel_major_versions:
   - '10'
 developer_hub_container_runtime: podman
 developer_hub_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+developer_hub_postinstall_template_preflight_binary_enforcement: "warn"
+developer_hub_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+developer_hub_postinstall_template_mount_free_space_enforcement: "warn"
+developer_hub_postinstall_template_mount_free_space_min_ratio: 0.15
+developer_hub_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ developer_hub_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ developer_hub_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ developer_hub_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ developer_hub_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ developer_hub_postinstall_template_mount_free_space_paths }}"

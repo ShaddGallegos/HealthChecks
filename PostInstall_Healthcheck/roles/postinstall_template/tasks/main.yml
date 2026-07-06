@@ -3,6 +3,133 @@
 # ansible-lint: skip_list=var-naming,jinja,yaml,risky-shell-pipe,risky-file-permissions,fqcn,key-order,name,package-latest
 # Collect a set of runtime artifacts useful for post-install healthchecks
 
+- name: Check required binary paths for postinstall checks
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ postinstall_template_preflight_required_binaries | default([]) }}"
+  register: postinstall_template_required_binary_stats
+  changed_when: false
+  failed_when: false
+
+- name: Build missing required binary list for postinstall checks
+  ansible.builtin.set_fact:
+    postinstall_template_missing_required_binaries: >-
+      {{
+        postinstall_template_required_binary_stats.results
+        | rejectattr('stat.exists', 'equalto', true)
+        | map(attribute='item')
+        | list
+      }}
+
+- name: Warn when required binaries are missing for postinstall checks
+  ansible.builtin.debug:
+    msg: "Missing required binaries for postinstall checks: {{ postinstall_template_missing_required_binaries | join(', ') }}"
+  when:
+    - (postinstall_template_missing_required_binaries | length) > 0
+    - (postinstall_template_preflight_binary_enforcement | default('warn')) == 'warn'
+
+- name: Fail when required binaries are missing and fail mode is enabled
+  ansible.builtin.assert:
+    that:
+      - (postinstall_template_missing_required_binaries | length) == 0
+    fail_msg: "Missing required binaries for postinstall checks: {{ postinstall_template_missing_required_binaries | join(', ') }}"
+  when: (postinstall_template_preflight_binary_enforcement | default('warn')) == 'fail'
+
+- name: Initialize mount free-space violations list for template checks
+  ansible.builtin.set_fact:
+    postinstall_template_mount_space_violations: []
+
+- name: Resolve effective mount paths for template checks
+  ansible.builtin.set_fact:
+    postinstall_template_effective_mount_paths: >-
+      {{
+        (
+          postinstall_template_mount_free_space_paths_by_product[product_name]
+          if (
+            product_name is defined
+            and postinstall_template_mount_free_space_paths_by_product is defined
+            and product_name in postinstall_template_mount_free_space_paths_by_product
+          )
+          else (postinstall_template_mount_free_space_paths | default([]))
+        )
+      }}
+
+- name: Collect critical mounts below free-space threshold for template checks
+  ansible.builtin.set_fact:
+    postinstall_template_mount_space_violations: >-
+      {{
+        postinstall_template_mount_space_violations + [
+          {
+            'mount': item.mount,
+            'size_total': item.size_total,
+            'size_available': item.size_available,
+            'free_ratio': ((item.size_available | float) / (item.size_total | float))
+          }
+        ]
+      }}
+  loop: "{{ ansible_facts.mounts | default([]) }}"
+  when:
+    - item.mount in (postinstall_template_effective_mount_paths | default([]))
+    - (item.size_total | int) > 0
+    - ((item.size_available | float) / (item.size_total | float)) < (postinstall_template_mount_free_space_min_ratio | float)
+
+- name: Capture /boot mount metrics
+  ansible.builtin.set_fact:
+    postinstall_template_boot_mount: >-
+      {{
+        (ansible_facts.mounts | default([]) | selectattr('mount', 'equalto', '/boot') | list | first)
+        if ((ansible_facts.mounts | default([]) | selectattr('mount', 'equalto', '/boot') | list | length) > 0)
+        else {}
+      }}
+
+- name: Build /boot free-space status from absolute MB threshold
+  ansible.builtin.set_fact:
+    postinstall_template_boot_free_mb: >-
+      {{
+        ((postinstall_template_boot_mount.size_available | default(0) | float) / 1024 / 1024) | round(2)
+      }}
+    postinstall_template_boot_violation: >-
+      {{
+        (
+          (postinstall_template_boot_mount | length > 0)
+          and
+          (((postinstall_template_boot_mount.size_available | default(0) | float) / 1024 / 1024)
+           < (postinstall_template_boot_min_free_mb | float))
+        )
+      }}
+
+- name: Warn when /boot free space is below required MB
+  ansible.builtin.debug:
+    msg: >-
+      /boot free space is below threshold: {{ postinstall_template_boot_free_mb }} MB available,
+      required minimum is {{ postinstall_template_boot_min_free_mb }} MB.
+  when:
+    - postinstall_template_boot_violation | bool
+    - (postinstall_template_mount_free_space_enforcement | default('warn')) == 'warn'
+
+- name: Fail when /boot free space is below required MB and fail mode is enabled
+  ansible.builtin.assert:
+    that:
+      - not (postinstall_template_boot_violation | bool)
+    fail_msg: >-
+      /boot free space is below threshold: {{ postinstall_template_boot_free_mb }} MB available,
+      required minimum is {{ postinstall_template_boot_min_free_mb }} MB.
+  when: (postinstall_template_mount_free_space_enforcement | default('warn')) == 'fail'
+
+- name: Warn on low free space for template critical mounts
+  ansible.builtin.debug:
+    msg: "Low free space detected on template critical mounts: {{ postinstall_template_mount_space_violations | to_nice_json }}"
+  when:
+    - (postinstall_template_mount_space_violations | length) > 0
+    - (postinstall_template_mount_free_space_enforcement | default('warn')) == 'warn'
+
+- name: Fail on low free space for template critical mounts when fail mode is enabled
+  ansible.builtin.assert:
+    that:
+      - (postinstall_template_mount_space_violations | length) == 0
+    fail_msg: "Template critical mounts below free-space threshold: {{ postinstall_template_mount_space_violations | to_nice_json }}"
+  when: (postinstall_template_mount_free_space_enforcement | default('warn')) == 'fail'
+
 - name: Gather installed RPM packages
   ansible.builtin.command:
     cmd: rpm -qa
@@ -92,6 +219,27 @@
   changed_when: false
   failed_when: false
 
+- name: Gather detailed memory info
+  ansible.builtin.command:
+    cmd: cat /proc/meminfo
+  register: meminfo_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather hostname details
+  ansible.builtin.command:
+    cmd: hostnamectl status
+  register: hostnamectl_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather hosts file
+  ansible.builtin.command:
+    cmd: cat /etc/hosts
+  register: hosts_file_out
+  changed_when: false
+  failed_when: false
+
 - name: Gather network interfaces (ip brief)
   ansible.builtin.command:
     cmd: ip -br addr
@@ -106,6 +254,20 @@
   changed_when: false
   failed_when: false
 
+- name: Gather routing table
+  ansible.builtin.command:
+    cmd: ip route show
+  register: ip_route_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather policy routes
+  ansible.builtin.command:
+    cmd: ip rule show
+  register: ip_rule_out
+  changed_when: false
+  failed_when: false
+
 - name: Gather NetworkManager devices (nmcli) if present
   ansible.builtin.shell: |
     if command -v nmcli >/dev/null 2>&1; then
@@ -114,6 +276,184 @@
       echo 'nmcli-not-installed'
     fi
   register: nmcli_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather DNS resolver details
+  ansible.builtin.shell: |
+    if command -v resolvectl >/dev/null 2>&1; then
+      resolvectl status || true
+    else
+      cat /etc/resolv.conf || true
+    fi
+  register: dns_resolver_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather DHCP lease sources from NetworkManager
+  ansible.builtin.shell: |
+    if command -v nmcli >/dev/null 2>&1; then
+      for dev in $(nmcli -t -f DEVICE,STATE device status | awk -F: '$2=="connected"{print $1}'); do
+        echo "=== DEVICE:${dev} ==="
+        nmcli -f GENERAL.DEVICE,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS,DHCP4.OPTION device show "$dev" || true
+      done
+    else
+      echo 'nmcli-not-installed'
+    fi
+  register: dhcp_nmcli_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather DHCP lease files if present
+  ansible.builtin.shell: |
+    if [ -d /var/lib/NetworkManager ]; then
+      ls -1 /var/lib/NetworkManager/*lease* 2>/dev/null || true
+      for f in /var/lib/NetworkManager/*lease*; do
+        [ -f "$f" ] && echo "---FILE:$f---" && sed -n '1,200p' "$f" || true
+      done
+    elif [ -d /var/lib/dhclient ]; then
+      ls -1 /var/lib/dhclient/* 2>/dev/null || true
+      for f in /var/lib/dhclient/*; do
+        [ -f "$f" ] && echo "---FILE:$f---" && sed -n '1,200p' "$f" || true
+      done
+    else
+      echo 'no-dhcp-lease-files-found'
+    fi
+  register: dhcp_lease_files_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather SSH daemon effective config
+  ansible.builtin.shell: |
+    if command -v sshd >/dev/null 2>&1; then
+      sshd -T 2>/dev/null || true
+    else
+      echo 'sshd-not-installed'
+    fi
+  register: sshd_config_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather SSH trust relationships (authorized_keys and known_hosts)
+  ansible.builtin.shell: |
+    for d in /root /home/*; do
+      [ -d "$d" ] || continue
+      u=$(basename "$d")
+      ak="$d/.ssh/authorized_keys"
+      kh="$d/.ssh/known_hosts"
+      cfg="$d/.ssh/config"
+      [ -f "$ak" ] && echo "---AUTH_KEYS:$u:$ak---" && sed -n '1,200p' "$ak" || true
+      [ -f "$kh" ] && echo "---KNOWN_HOSTS:$u:$kh---" && sed -n '1,200p' "$kh" || true
+      [ -f "$cfg" ] && echo "---SSH_CONFIG:$u:$cfg---" && sed -n '1,200p' "$cfg" || true
+    done
+    [ -f /etc/ssh/ssh_known_hosts ] && echo '---SYSTEM_KNOWN_HOSTS:/etc/ssh/ssh_known_hosts---' && sed -n '1,200p' /etc/ssh/ssh_known_hosts || true
+  register: ssh_relationships_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather critical permission baseline
+  ansible.builtin.shell: |
+    for f in /etc/passwd /etc/group /etc/shadow /etc/gshadow /etc/sudoers /etc/ssh/sshd_config; do
+      if [ -e "$f" ]; then
+        stat -c '%n %a %U:%G %F' "$f"
+      else
+        echo "$f missing"
+      fi
+    done
+    for d in /root /home; do
+      [ -d "$d" ] && stat -c '%n %a %U:%G %F' "$d" || true
+    done
+  register: permissions_baseline_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather filesystem free space by mount
+  ansible.builtin.command:
+    cmd: df -hPT
+  register: df_hpt_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather inode utilization
+  ansible.builtin.command:
+    cmd: df -iPT
+  register: dfi_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather BIOS and firmware details
+  ansible.builtin.shell: |
+    if command -v dmidecode >/dev/null 2>&1; then
+      dmidecode -t bios || true
+    else
+      echo 'dmidecode-not-installed'
+    fi
+  register: bios_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather firmware update availability if fwupd is installed
+  ansible.builtin.shell: |
+    if command -v fwupdmgr >/dev/null 2>&1; then
+      fwupdmgr get-devices --show-all-devices || true
+      echo '---UPDATES---'
+      fwupdmgr get-updates || true
+    else
+      echo 'fwupdmgr-not-installed'
+    fi
+  register: fwupd_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather kernel module inventory
+  ansible.builtin.command:
+    cmd: lsmod
+  register: lsmod_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather PCI driver bindings
+  ansible.builtin.shell: |
+    if command -v lspci >/dev/null 2>&1; then
+      lspci -k || true
+    else
+      echo 'lspci-not-installed'
+    fi
+  register: lspci_k_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather potential driver issues from kernel logs
+  ansible.builtin.shell: |
+    journalctl -k -n 1000 --no-pager | grep -E -i 'driver|firmware|failed|error|reset|timeout|i/o error|nvme|scsi|mlx|ixgbe|e1000' || true
+  register: driver_issues_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather SMART storage health if smartctl is installed
+  ansible.builtin.shell: |
+    if command -v smartctl >/dev/null 2>&1; then
+      smartctl --scan-open || true
+      for dev in $(smartctl --scan-open 2>/dev/null | awk '{print $1}'); do
+        echo "=== SMART:${dev} ==="
+        smartctl -H "$dev" || true
+        smartctl -A "$dev" || true
+        smartctl -l error "$dev" || true
+      done
+    else
+      echo 'smartctl-not-installed'
+    fi
+  register: smartctl_out
+  changed_when: false
+  failed_when: false
+
+- name: Gather storage error patterns from kernel and journal
+  ansible.builtin.shell: |
+    {
+      dmesg -T 2>/dev/null
+      journalctl -k -n 1000 --no-pager 2>/dev/null
+    } | grep -E -i 'i/o error|blk_update_request|buffer i/o|ext4.*error|xfs.*error|nvme.*error|scsi.*error|raid.*degraded|medium error' || true
+  register: storage_errors_out
   changed_when: false
   failed_when: false
 
@@ -250,6 +590,16 @@
         distribution_major: "{{ ansible_facts['distribution_major_version'] | default('') }}"
         kernel: "{{ ansible_facts['kernel'] | default('') }}"
         ipv4_addresses: "{{ ansible_all_ipv4_addresses | default([]) }}"
+      preflight:
+        required_binaries: "{{ postinstall_template_preflight_required_binaries | default([]) }}"
+        missing_binaries: "{{ postinstall_template_missing_required_binaries | default([]) }}"
+      capacity_guardrails:
+        min_free_ratio: "{{ postinstall_template_mount_free_space_min_ratio | default(0.15) }}"
+        checked_mounts: "{{ postinstall_template_effective_mount_paths | default([]) }}"
+        below_threshold: "{{ postinstall_template_mount_space_violations | default([]) }}"
+        boot_min_free_mb: "{{ postinstall_template_boot_min_free_mb | default(2048) }}"
+        boot_free_mb: "{{ postinstall_template_boot_free_mb | default('n/a') }}"
+        boot_below_threshold: "{{ postinstall_template_boot_violation | default(false) }}"
       rpm_packages: "{{ rpm_out.stdout_lines | default([]) }}"
       enabled_services: "{{ enabled_services.stdout_lines | default([]) }}"
       running_services: "{{ running_services.stdout_lines | default([]) }}"
@@ -258,18 +608,38 @@
       users: "{{ passwd_out.stdout_lines | default([]) }}"
       groups: "{{ group_out.stdout_lines | default([]) }}"
       sudoers: "{{ sudoers_out.stdout | default('') }}"
+      hostnamectl: "{{ hostnamectl_out.stdout | default('') }}"
+      hosts_file: "{{ hosts_file_out.stdout | default('') }}"
       firewall: "{{ firewall_out.stdout | default('') }}"
       selinux: "{{ selinux_out.stdout | default('') }}"
       sysctl: "{{ sysctl_out.stdout_lines | default([]) }}"
       lsblk: "{{ lsblk_out.stdout | default('') }}"
       dmidecode: "{{ dmidecode_out.stdout | default('') }}"
+      bios: "{{ bios_out.stdout | default('') }}"
+      fwupd: "{{ fwupd_out.stdout | default('') }}"
       lspci: "{{ lspci_out.stdout | default('') }}"
+      lspci_k: "{{ lspci_k_out.stdout | default('') }}"
       lsusb: "{{ lsusb_out.stdout | default('') }}"
+      lsmod: "{{ lsmod_out.stdout_lines | default([]) }}"
+      driver_issues: "{{ driver_issues_out.stdout_lines | default([]) }}"
       cpuinfo: "{{ cpuinfo_out.stdout | default('') }}"
       memory: "{{ mem_out.stdout | default('') }}"
+      meminfo: "{{ meminfo_out.stdout_lines | default([]) }}"
       ip_brief: "{{ ip_brief.stdout | default('') }}"
       ip_link: "{{ ip_link.stdout | default('') }}"
+      ip_route: "{{ ip_route_out.stdout_lines | default([]) }}"
+      ip_rule: "{{ ip_rule_out.stdout_lines | default([]) }}"
       nmcli: "{{ nmcli_out.stdout | default('') }}"
+      dns_resolver: "{{ dns_resolver_out.stdout | default('') }}"
+      dhcp_nmcli: "{{ dhcp_nmcli_out.stdout | default('') }}"
+      dhcp_lease_files: "{{ dhcp_lease_files_out.stdout | default('') }}"
+      sshd_config_effective: "{{ sshd_config_out.stdout_lines | default([]) }}"
+      ssh_relationships: "{{ ssh_relationships_out.stdout | default('') }}"
+      permissions_baseline: "{{ permissions_baseline_out.stdout_lines | default([]) }}"
+      fs_usage: "{{ df_hpt_out.stdout_lines | default([]) }}"
+      fs_inodes: "{{ dfi_out.stdout_lines | default([]) }}"
+      smartctl: "{{ smartctl_out.stdout | default('') }}"
+      storage_errors: "{{ storage_errors_out.stdout_lines | default([]) }}"
       subscription: "{{ subscription_out.stdout | default('') }}"
       insights: "{{ insights_out.stdout | default('') }}"
       rhc: "{{ rhc_out.stdout | default('') }}"

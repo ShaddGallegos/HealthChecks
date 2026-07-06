@@ -10,6 +10,26 @@
       - gitea
       - openshift_local
   tasks:
+    - name: Ensure ~/.ansible/conf/env.yml exists
+      ansible.builtin.command:
+        cmd: python3 HealthChecks/tools/env_manager.py --ensure
+      changed_when: false
+
+    - name: Read common admin/sudo values from env manager
+      ansible.builtin.command:
+        cmd: python3 HealthChecks/tools/env_manager.py --get common admin_user --get common admin_user_password --get common sudo_group --get common redhat_cdn_username --get common redhat_cdn_password
+      register: preflight_common_env_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: Parse common env values for preflight
+      ansible.builtin.set_fact:
+        healthcheck_common_admin_user: "{{ ((preflight_common_env_cmd.stdout_lines | default([]) | select('search', '^common\\.admin_user=') | list | first | default('common.admin_user=')) | regex_replace('^common\\.admin_user=', '')) | default('admin') }}"
+        healthcheck_common_admin_user_password: "{{ ((preflight_common_env_cmd.stdout_lines | default([]) | select('search', '^common\\.admin_user_password=') | list | first | default('common.admin_user_password=')) | regex_replace('^common\\.admin_user_password=', '')) | default('') }}"
+        healthcheck_common_sudo_group: "{{ ((preflight_common_env_cmd.stdout_lines | default([]) | select('search', '^common\\.sudo_group=') | list | first | default('common.sudo_group=')) | regex_replace('^common\\.sudo_group=', '')) | default('wheel') }}"
+        healthcheck_common_redhat_cdn_username: "{{ ((preflight_common_env_cmd.stdout_lines | default([]) | select('search', '^common\\.redhat_cdn_username=') | list | first | default('common.redhat_cdn_username=')) | regex_replace('^common\\.redhat_cdn_username=', '')) | default('') }}"
+        healthcheck_common_redhat_cdn_password: "{{ ((preflight_common_env_cmd.stdout_lines | default([]) | select('search', '^common\\.redhat_cdn_password=') | list | first | default('common.redhat_cdn_password=')) | regex_replace('^common\\.redhat_cdn_password=', '')) | default('') }}"
+
     - name: Ensure artifacts dir exists
       ansible.builtin.file:
         path: "{{ artifacts_dir }}"
@@ -23,6 +43,11 @@
         healthcheck_product: "{{ role_name }}"
         healthcheck_artifacts_dir: "{{ lookup('env', 'HOME') + '/.ansible/artifacts' }}"
         healthcheck_mode_only: "{{ healthcheck_check_mode_only | default(true) | bool }}"
+        healthcheck_common_admin_user: "{{ healthcheck_common_admin_user | default('admin') }}"
+        healthcheck_common_admin_user_password: "{{ healthcheck_common_admin_user_password | default('') }}"
+        healthcheck_common_sudo_group: "{{ healthcheck_common_sudo_group | default('wheel') }}"
+        healthcheck_common_redhat_cdn_username: "{{ healthcheck_common_redhat_cdn_username | default('') }}"
+        healthcheck_common_redhat_cdn_password: "{{ healthcheck_common_redhat_cdn_password | default('') }}"
       loop: "{{ products }}"
       loop_control:
         loop_var: role_name

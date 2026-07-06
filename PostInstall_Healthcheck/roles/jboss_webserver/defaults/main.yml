@@ -1,6 +1,6 @@
 ---
-jboss_webserver_postinstall_admin_user: admin
-jboss_webserver_postinstall_sudo_group: wheel
+jboss_webserver_postinstall_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
+jboss_webserver_postinstall_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 jboss_webserver_product_repos: []
 jboss_webserver_product_prereq_packages: []
 jboss_webserver_product_required_secrets: []
@@ -15,3 +15,22 @@ jboss_webserver_supported_rhel_major_versions:
   - '10'
 jboss_webserver_container_runtime: podman
 jboss_webserver_container_registry: registry.redhat.io
+
+# Per-role overrides for shared postinstall template guardrails
+jboss_webserver_postinstall_template_preflight_binary_enforcement: "warn"
+jboss_webserver_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+jboss_webserver_postinstall_template_mount_free_space_enforcement: "warn"
+jboss_webserver_postinstall_template_mount_free_space_min_ratio: 0.15
+jboss_webserver_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/log
+  - /var/tmp
+
+postinstall_template_preflight_binary_enforcement: "{{ jboss_webserver_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ jboss_webserver_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ jboss_webserver_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ jboss_webserver_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ jboss_webserver_postinstall_template_mount_free_space_paths }}"

@@ -1,0 +1,7 @@
+---
+- name: Print Discovery healthcheck result summary
+  ansible.builtin.debug:
+    msg:
+      - "Discovery healthcheck completed with overall status: {{ discovery_overall_status }}"
+      - "Pass: {{ discovery_status_counts.pass }} | Warn: {{ discovery_status_counts.warn }} | Fail: {{ discovery_status_counts.fail }}"
+      - "Artifacts written to: {{ discovery_healthcheck_output_dir }}"

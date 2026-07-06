@@ -1,0 +1,47 @@
+---
+- name: Count check statuses
+  ansible.builtin.set_fact:
+    discovery_status_counts:
+      pass: "{{ discovery_healthcheck_result.checks | dict2items | selectattr('value.status', 'equalto', 'pass') | list | length }}"
+      warn: "{{ discovery_healthcheck_result.checks | dict2items | selectattr('value.status', 'equalto', 'warn') | list | length }}"
+      fail: "{{ discovery_healthcheck_result.checks | dict2items | selectattr('value.status', 'equalto', 'fail') | list | length }}"
+
+- name: Derive overall status
+  ansible.builtin.set_fact:
+    discovery_overall_status: >-
+      {{
+        'fail' if (discovery_status_counts.fail | int > 0)
+        else (
+          'warn' if (discovery_status_counts.warn | int > 0)
+          else 'pass'
+        )
+      }}
+
+- name: Add report footer metadata
+  ansible.builtin.set_fact:
+    discovery_healthcheck_result: >-
+      {{
+        discovery_healthcheck_result
+        | combine(
+            {
+              'metadata': {
+                'completed_at': ansible_date_time.iso8601,
+                'overall_status': discovery_overall_status
+              },
+              'summary': discovery_status_counts
+            },
+            recursive=True
+          )
+      }}
+
+- name: Write JSON report artifact
+  ansible.builtin.copy:
+    dest: "{{ discovery_healthcheck_output_dir }}/discovery_healthcheck_report.json"
+    content: "{{ discovery_healthcheck_result | to_nice_json }}"
+    mode: "0644"
+
+- name: Render Markdown summary report
+  ansible.builtin.template:
+    src: discovery_report.md.j2
+    dest: "{{ discovery_healthcheck_output_dir }}/discovery_healthcheck_report.md"
+    mode: "0644"

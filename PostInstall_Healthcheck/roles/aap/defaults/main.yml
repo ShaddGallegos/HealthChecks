@@ -1,7 +1,7 @@
 ---
-aap_preflight_admin_user: admin
+aap_preflight_admin_user: \"{{ healthcheck_common_admin_user | default('admin') }}\"
 aap_preflight_container_rootless: false
-aap_preflight_sudo_group: wheel
+aap_preflight_sudo_group: \"{{ healthcheck_common_sudo_group | default('wheel') }}\"
 aap_product_repos:
   - name: aap-base
     description: AAP repository
@@ -64,6 +64,30 @@ aap_apply_changes: false
 aap_validate_platform_certs: false
 aap_show_help: false
 
+# Preflight enforcement mode for required host binaries.
+# Allowed values: warn, fail
+aap_preflight_binary_enforcement: "warn"
+
+# Required binaries for AAP platform checks.
+aap_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+
+# Mount free-space checks for critical paths.
+# Allowed values: warn, fail
+aap_mount_free_space_enforcement: "warn"
+aap_mount_free_space_min_ratio: 0.15
+aap_mount_free_space_paths:
+  - /
+  - /var
+  - /var/lib/awx
+  - /var/lib/pulp
+  - /var/lib/pgsql
+  - /var/lib/redis
+
+# /boot absolute minimum free MB check.
+aap_boot_min_free_mb: 2048
+
 # AAP database reporting (managed node and event export)
 aap_db_reporting_enabled: false
 aap_db_reporting_output_dir: "{{ playbook_dir }}/artifacts/aap_db_reporting"
@@ -87,3 +111,26 @@ aap_db_reporting_analytics_enabled: false
 aap_db_reporting_analytics_command: "awx-manage gather_analytics"
 aap_db_reporting_analytics_output_file: "{{ aap_db_reporting_output_dir }}/analytics_capture.log"
 aap_db_reporting_analytics_fail_on_error: false
+
+# Per-role overrides for shared postinstall template guardrails
+aap_postinstall_template_preflight_binary_enforcement: "warn"
+aap_postinstall_template_preflight_required_binaries:
+  - /bin/rpm
+  - /usr/bin/dnf
+aap_postinstall_template_mount_free_space_enforcement: "warn"
+aap_postinstall_template_mount_free_space_min_ratio: 0.15
+aap_postinstall_template_mount_free_space_paths:
+  - /
+  - /var
+  - /var/lib/awx
+  - /var/lib/pulp
+  - /var/lib/pgsql
+  - /var/lib/redis
+aap_postinstall_template_boot_min_free_mb: 2048
+
+postinstall_template_preflight_binary_enforcement: "{{ aap_postinstall_template_preflight_binary_enforcement }}"
+postinstall_template_preflight_required_binaries: "{{ aap_postinstall_template_preflight_required_binaries }}"
+postinstall_template_mount_free_space_enforcement: "{{ aap_postinstall_template_mount_free_space_enforcement }}"
+postinstall_template_mount_free_space_min_ratio: "{{ aap_postinstall_template_mount_free_space_min_ratio }}"
+postinstall_template_mount_free_space_paths: "{{ aap_postinstall_template_mount_free_space_paths }}"
+postinstall_template_boot_min_free_mb: "{{ aap_postinstall_template_boot_min_free_mb }}"
