@@ -7,11 +7,11 @@
 
 - name: Build run metadata
   ansible.builtin.set_fact:
-    discovery_healthcheck_started_at: "{{ ansible_date_time.iso8601 }}"
+    discovery_healthcheck_started_at: "{{ ansible_facts['date_time']['iso8601'] | default('') }}"
     discovery_healthcheck_result:
       metadata:
         host: "{{ inventory_hostname }}"
-        started_at: "{{ ansible_date_time.iso8601 }}"
+        started_at: "{{ ansible_facts['date_time']['iso8601'] | default('') }}"
         article_reference: "https://access.redhat.com/articles/4605801"
       checks:
         runtime:

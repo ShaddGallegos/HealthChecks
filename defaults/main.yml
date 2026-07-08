@@ -1,0 +1,4 @@
+---
+healthchecks_use_local_defaults_env: true
+healthchecks_defaults_env_file: "{{ playbook_dir | dirname }}/defaults/env.yml"
+healthchecks_local_defaults_precedence: "noninteractive"

@@ -493,7 +493,7 @@
     cmd: >-
       python3 {{ playbook_dir }}/tools/report_generator.py
       --inputs "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name | default(inventory_hostname) }}-preflight-report.json"
-      --output "{{ lookup('env', 'HOME') + '/.ansible/reports/' + (product_name | default(inventory_hostname)) + '_' + ansible_date_time.iso8601 + '.html' }}"
+      --output "{{ lookup('env', 'HOME') + '/.ansible/reports/' + (product_name | default(inventory_hostname)) + '_' + (ansible_facts['date_time']['iso8601'] | default('now')) + '.html' }}"
       --title "Preflight report: {{ product_name | default(inventory_hostname) }}"
   delegate_to: localhost
   changed_when: false

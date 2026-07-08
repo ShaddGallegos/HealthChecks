@@ -3,15 +3,16 @@
   connection: local
   gather_facts: false
   vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
     artifacts_dir: "{{ lookup('env', 'HOME') + '/.ansible/artifacts' }}"
     reports_dir: "{{ lookup('env', 'HOME') + '/.ansible/reports' }}"
-    formats: "{{ formats | default('html') }}"
+    report_formats: "{{ formats | default('html') }}"
   tasks:
     - name: Run aggregate reports script
       ansible.builtin.command:
         cmd: >-
-          python3 HealthChecks/tools/aggregate_reports.py
+          {{ ansible_playbook_python }} {{ playbook_dir }}/tools/aggregate_reports.py
           --artifacts "{{ artifacts_dir }}"
           --output-dir "{{ reports_dir }}"
-          --formats "{{ formats }}"
+            --formats "{{ report_formats }}"
       changed_when: false

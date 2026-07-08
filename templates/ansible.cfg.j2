@@ -1,6 +1,6 @@
 [defaults]
 inventory = {{ ansible_inventory | default('./inventory.ini') }}
-roles_path = {{ ansible_roles_path | default('./PreFlight_Healthcheck/roles:./PostInstall_Healthcheck/roles') }}
+roles_path = {{ ansible_roles_path | default(lookup('pipe', "find . -type d -name roles -not -path '*/.*' 2>/dev/null | sort | paste -sd: -") | default('./roles', true), true) }}
 host_key_checking = {{ ansible_host_key_checking | default('False') }}
 retry_files_enabled = {{ ansible_retry_files_enabled | default('False') }}
 remote_tmp = {{ ansible_remote_tmp | default('/var/tmp') }}

@@ -3,6 +3,7 @@
   connection: local
   gather_facts: yes
   vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
     artifacts_dir: "{{ lookup('env', 'HOME') + '/.ansible/artifacts' }}"
     products:
       - rhel
@@ -12,12 +13,12 @@
   tasks:
     - name: Ensure ~/.ansible/conf/env.yml exists
       ansible.builtin.command:
-        cmd: python3 HealthChecks/tools/env_manager.py --ensure
+        cmd: "{{ ansible_playbook_python }} HealthChecks/tools/env_manager.py --ensure"
       changed_when: false
 
     - name: Read common admin/sudo values from env manager
       ansible.builtin.command:
-        cmd: python3 HealthChecks/tools/env_manager.py --get common admin_user --get common admin_user_password --get common sudo_group --get common redhat_cdn_username --get common redhat_cdn_password
+        cmd: "{{ ansible_playbook_python }} HealthChecks/tools/env_manager.py --get common admin_user --get common admin_user_password --get common sudo_group --get common redhat_cdn_username --get common redhat_cdn_password"
       register: preflight_common_env_cmd
       changed_when: false
       failed_when: false

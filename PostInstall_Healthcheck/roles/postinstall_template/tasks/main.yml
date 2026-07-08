@@ -584,12 +584,12 @@
   ansible.builtin.set_fact:
     postinstall_snapshot:
       inventory_hostname: "{{ inventory_hostname }}"
-      timestamp: "{{ ansible_date_time.iso8601 }}"
+      timestamp: "{{ ansible_facts['date_time']['iso8601'] | default('') }}"
       ansible_facts:
         distribution: "{{ ansible_facts['distribution'] | default('') }}"
         distribution_major: "{{ ansible_facts['distribution_major_version'] | default('') }}"
         kernel: "{{ ansible_facts['kernel'] | default('') }}"
-        ipv4_addresses: "{{ ansible_all_ipv4_addresses | default([]) }}"
+        ipv4_addresses: "{{ ansible_facts['all_ipv4_addresses'] | default([]) }}"
       preflight:
         required_binaries: "{{ postinstall_template_preflight_required_binaries | default([]) }}"
         missing_binaries: "{{ postinstall_template_missing_required_binaries | default([]) }}"
@@ -658,7 +658,7 @@
 - name: Write snapshot to controller
   ansible.builtin.copy:
     content: "{{ postinstall_snapshot | to_nice_json }}\n"
-    dest: "{{ artifacts_dir }}/{{ inventory_hostname }}-{{ ansible_date_time.iso8601 }}.json"
+    dest: "{{ artifacts_dir }}/{{ inventory_hostname }}-{{ ansible_facts['date_time']['iso8601'] | default('now') }}.json"
   delegate_to: localhost
   changed_when: false
 

@@ -4,7 +4,8 @@
   become: true
   vars:
     product_name: rhel
-    artifacts_dir: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts/postinstall')) }}"
+    postinstall_artifacts_dir: "{{ lookup('env', 'HOME') + '/.ansible/artifacts/postinstall' }}"
+    artifacts_dir_effective: "{{ postinstall_artifacts_dir }}"
   pre_tasks:
     - name: Set healthcheck safety mode
       ansible.builtin.set_fact:
@@ -19,7 +20,7 @@
 
     - name: Ensure artifacts dir exists on controller
       file:
-        path: "{{ artifacts_dir }}"
+        path: "{{ artifacts_dir_effective }}"
         state: directory
         mode: '0755'
       delegate_to: localhost
@@ -27,9 +28,7 @@
   roles:
     - role: roles/postinstall_template
       vars:
-        product_name: "{{ product_name }}"
-        artifacts_dir: "{{ artifacts_dir }}"
+        artifacts_dir: "{{ artifacts_dir_effective }}"
     - role: "roles/{{ product_name }}"
       vars:
-        product_name: "{{ product_name }}"
-        artifacts_dir: "{{ artifacts_dir }}"
+        artifacts_dir: "{{ artifacts_dir_effective }}"

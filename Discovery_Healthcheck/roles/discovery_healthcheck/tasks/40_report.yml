@@ -25,7 +25,7 @@
         | combine(
             {
               'metadata': {
-                'completed_at': ansible_date_time.iso8601,
+                'completed_at': (ansible_facts['date_time']['iso8601'] | default('')),
                 'overall_status': discovery_overall_status
               },
               'summary': discovery_status_counts

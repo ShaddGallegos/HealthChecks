@@ -319,7 +319,7 @@
   ansible.builtin.copy:
     dest: "{{ artifacts_dir | default((lookup('env', 'HOME') + '/.ansible/artifacts')) }}/{{ product_name | default('aap') }}-{{ inventory_hostname }}-report.log"
     content: |
-      Report generated for {{ product_name }} on {{ ansible_date_time.iso8601 }}
+      Report generated for {{ product_name }} on {{ ansible_facts['date_time']['iso8601'] | default('') }}
       Controller: {{ controller_version | default('N/A') }}
       Hub: {{ hub_version | default('N/A') }}
       EDA: {{ eda_version | default('N/A') }}

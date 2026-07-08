@@ -6,6 +6,7 @@
   become: true
 
   vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
     discovery_healthcheck_output_dir: "./discovery_reports"
 
   roles:

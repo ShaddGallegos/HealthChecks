@@ -2,8 +2,10 @@
 - hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
   tasks:
     - name: Ensure ~/.ansible/conf/env.yml exists (encrypted if vaultpass present)
       ansible.builtin.command:
-        cmd: python3 HealthChecks/tools/env_manager.py --ensure
+        cmd: "{{ ansible_playbook_python }} HealthChecks/tools/env_manager.py --ensure"
       changed_when: false
