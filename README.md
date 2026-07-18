@@ -55,3 +55,9 @@ Some workflows are intentionally report-only by default. Review the README in ea
 - The directory name `ennvironments` is kept as-is in the repository.
 - Several healthchecks produce JSON, Markdown, CSV, or other audit artifacts for later review.
 - If you are adding a new healthcheck area, follow the same layout so it fits the rest of the repository cleanly.
+
+## Optional HTTP service
+
+This repository now includes a lightweight HTTP service that can run healthcheck plugins, expose Prometheus metrics, and schedule periodic checks. The service lives in `HealthChecks/service/` and is useful when you want an always-on runner, metrics export, or alerting hooks.
+
+See `HealthChecks/service/README.md` for details on running the service and writing plugin checks.
